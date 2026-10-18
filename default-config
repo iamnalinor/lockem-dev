@@ -1,0 +1,28 @@
+# lockem configuration (flat key=value; edited by WebUI or by hand)
+# Packages to hide are listed separately in packages.list (one per line).
+
+# disable axis: 0 = pm disable-user (per-user, safe, default); 1 = strict pm disable (global, risky)
+strict_disable=0
+
+# options (1=on, 0=off)
+opt_vibrate=1
+opt_private_space=1
+opt_lockdown=1
+opt_disable_devopts=1
+opt_autolock_screenoff=0
+opt_autolock_timeout=0
+
+# auto-lock timeout in minutes (used when opt_autolock_timeout=1)
+autolock_timeout_min=5
+
+# hold threshold in milliseconds (click vs hold)
+hold_ms=500
+
+# boot-combo escape: hold this key during daemon startup window to unlock-all
+escape_key=KEY_VOLUMEUP
+escape_window_sec=6
+
+# patterns: comma-separated tokens; token = click:KEY | hold:KEY | press:KEY | unpress:KEY
+# keys: KEY_POWER, KEY_VOLUMEUP, KEY_VOLUMEDOWN
+lock_pattern=click:KEY_VOLUMEUP,click:KEY_VOLUMEUP,hold:KEY_VOLUMEDOWN
+unlock_pattern=click:KEY_VOLUMEDOWN,click:KEY_VOLUMEDOWN,hold:KEY_VOLUMEUP

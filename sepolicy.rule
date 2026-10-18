@@ -1,0 +1,5 @@
+# lockemd runs in u:r:magisk:s0, which Magisk makes effectively permissive, so on most
+# setups no rules are needed. These cover reading input devices on stricter policies.
+# Extend from real `dmesg | grep 'avc: denied'` on the device if something is blocked.
+allow magisk input_device dir { search read open getattr }
+allow magisk input_device chr_file { open read write ioctl getattr }

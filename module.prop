@@ -1,0 +1,6 @@
+id=lockem
+name=lockem
+version=v0.1.0
+versionCode=1
+author=lockem
+description=Hide selected apps by a hardware-button combo; reverse combo restores them. Passive evdev matcher, reversible pm hide/disable, WebUI config, boot-combo escape recovery.

@@ -1,0 +1,47 @@
+#!/system/bin/sh
+# lockem CLI. On PATH for any root shell. `unlock` is self-contained (no daemon needed)
+# so it works for recovery from adb-su / recovery / GSI. Other subcommands signal the daemon.
+
+LDIR=/data/adb/lockem
+PKG="$LDIR/packages.list"
+CTL="$LDIR/ctl"
+CFG="$LDIR/config"
+DAEMON=/data/adb/modules/lockem/bin/lockemd
+
+cfg() { grep -E "^$1=" "$CFG" 2>/dev/null | head -n1 | cut -d= -f2-; }
+
+do_unlock() {
+  if [ ! -f "$PKG" ]; then echo "lockem: no packages.list"; return 1; fi
+  while IFS= read -r p; do
+    [ -z "$p" ] && continue
+    case "$p" in \#*) continue ;; esac
+    pm unhide "$p" >/dev/null 2>&1
+    pm enable "$p" >/dev/null 2>&1
+    pm enable --user 0 "$p" >/dev/null 2>&1
+    echo "unlocked: $p"
+  done < "$PKG"
+  if [ -f "$LDIR/state" ]; then
+    . "$LDIR/state" 2>/dev/null
+    if [ -n "$devopts_prev" ]; then
+      settings put global development_settings_enabled "$devopts_prev" >/dev/null 2>&1
+    fi
+  fi
+  echo "lockem: unlock complete"
+}
+
+signal() { mkdir -p "$CTL"; : > "$CTL/$1"; echo "lockem: signaled $1"; }
+
+case "$1" in
+  unlock)              do_unlock ;;
+  lock)                signal lock_now ;;
+  reload)              signal reload ;;
+  record-lock-combo)   signal record_lock ;;
+  record-unlock-combo) signal record_unlock ;;
+  status)
+    if pgrep -f "$DAEMON" >/dev/null 2>&1; then echo "daemon: running"; else echo "daemon: NOT running"; fi
+    echo "packages:"; cat "$PKG" 2>/dev/null
+    ;;
+  *)
+    echo "usage: lockem {lock|unlock|reload|status|record-lock-combo|record-unlock-combo}"
+    exit 1 ;;
+esac

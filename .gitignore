@@ -1,0 +1,22 @@
+# native build artifacts
+src/obj/
+src/libs/
+bin/lockemd
+bin/lockemd-arm64
+bin/lockemd-x86_64
+*.o
+
+# host test binaries
+tests/*.out
+tests/run
+tests/*.bin
+
+# packaged module
+dist/
+*.zip
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
