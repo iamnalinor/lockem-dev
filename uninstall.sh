@@ -16,6 +16,7 @@ if [ -f "$LDIR/packages.list" ] && command -v pm >/dev/null 2>&1; then
 fi
 
 if [ -f "$LDIR/state" ]; then
+  # shellcheck source=/dev/null
   . "$LDIR/state" 2>/dev/null
   if [ -n "$devopts_prev" ] && command -v settings >/dev/null 2>&1; then
     settings put global development_settings_enabled "$devopts_prev" 2>/dev/null
