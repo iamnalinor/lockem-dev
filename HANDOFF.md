@@ -149,8 +149,8 @@ API android-37.x, Play Store (ps16k, 16 KB page size)** (про рут на нё
 NDK ставится с Android Studio (в нём есть `ndk-build`, на Windows — `ndk-build.cmd`).
 Локально, после создания Application.mk/build.sh, из корня репозитория:
 ```bash
-# укажи путь к своему NDK (пример для Windows git-bash — подставь своего пользователя/версию):
-export ANDROID_NDK_HOME=/path/to/Android/Sdk/ndk/<version>
+# укажи путь к своему NDK (внутри Android SDK, каталог ndk/<version>):
+export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/<version>"
 bash build.sh
 ```
 Ожидаемо: `bin/lockemd-arm64` и `bin/lockemd-x86_64`. Для эмулятора нужен **x86_64**; для телефона arm64.
