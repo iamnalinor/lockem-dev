@@ -13,13 +13,15 @@ Magisk-модуль **lockem** для личного **Pixel 9a (Android 16)**. 
 возврат — `pm unhide` + `pm enable`. Демон читает evdev **пассивно**; эксклюзивный захват (EVIOCGRAB)
 используется **только на момент записи комбо**. Это **сокрытие/обфускация, не криптозащита** (см. §7).
 
-Полный проектный план (дизайн-решения, обоснования) лежит локально на машине:
-`C:\Users\iamna\.claude\plans\pasted-content-id-275e-delightful-teapot.md` — прочитай его целиком,
-там все «почему». Этот файл — рабочая выжимка + статус.
+Исходный проектный план (с обоснованиями решений) лежит рядом — `PLAN.md`. Он **не вполне актуален**
+(источник истины: код → этот HANDOFF → PLAN), держи его ради контекста и «почему». Ключевые решения
+также сведены в §2 и §7 ниже.
 
-Окружение: Magisk **Alpha** + **KsuWebUI** (standalone-рендерер WebUI, его же использует TrickyStore).
-Разработка на Windows 11. NDK: `C:\Users\iamna\AppData\Local\Android\Sdk\ndk\30.0.16248370`.
-Эмулятор AVD `Pixel_9a` — образ **x86_64, android-37.2, google_apis_playstore (ps16k, 16KB page)**.
+Окружение разработки/целевое: Magisk **Alpha** + **KsuWebUI** (standalone-рендерер WebUI, его же
+использует TrickyStore). Целевое устройство — Pixel 9a, Android 16. Собиралось на Windows + Android
+Studio; NDK ставится с Android Studio (путь — в `$ANDROID_NDK_HOME` или `$ANDROID_SDK_ROOT/ndk/<version>`),
+версия при разработке 30.0.16248370 — подойдёт любая современная (r26+). Тестовый AVD — образ **x86_64,
+API android-37.x, Play Store (ps16k, 16 KB page size)** (про рут на нём — см. §6).
 
 Репозиторий: https://github.com/iamnalinor/lockem-dev (ветка `main`).
 Коммить от имени `iamnalinor <63642425+iamnalinor@users.noreply.github.com>`.
@@ -144,11 +146,12 @@ Magisk-модуль **lockem** для личного **Pixel 9a (Android 16)**. 
 
 ## 5. Сборка
 
-NDK: `C:\Users\iamna\AppData\Local\Android\Sdk\ndk\30.0.16248370` (есть `ndk-build.cmd`).
-Локально (Windows, git-bash), после создания Application.mk/build.sh:
+NDK ставится с Android Studio (в нём есть `ndk-build`, на Windows — `ndk-build.cmd`).
+Локально, после создания Application.mk/build.sh, из корня репозитория:
 ```bash
-export ANDROID_NDK_HOME="/c/Users/iamna/AppData/Local/Android/Sdk/ndk/30.0.16248370"
-cd /c/Users/iamna/lockem && bash build.sh
+# укажи путь к своему NDK (пример для Windows git-bash — подставь своего пользователя/версию):
+export ANDROID_NDK_HOME=/path/to/Android/Sdk/ndk/<version>
+bash build.sh
 ```
 Ожидаемо: `bin/lockemd-arm64` и `bin/lockemd-x86_64`. Для эмулятора нужен **x86_64**; для телефона arm64.
 ABI эмулятора — x86_64, образ 16KB-page (ps16k) → флаг `-Wl,-z,max-page-size=16384` обязателен (уже в mk).
