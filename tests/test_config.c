@@ -33,20 +33,36 @@ static void test_custom_command(void) {
     memset(&c, 0, sizeof(c));
     config_apply_kv(&c, "lock_cmd", "input keyevent 26");
     config_apply_kv(&c, "unlock_cmd", "echo hi");
-    config_apply_kv(&c, "cmd_user", "root");
-    config_apply_kv(&c, "cmd_timing", "before");
+    /* run-as is now per command */
+    config_apply_kv(&c, "lock_cmd_user", "root");
+    config_apply_kv(&c, "unlock_cmd_user", "shell");
     CHECK_STREQ(c.lock_cmd, "input keyevent 26");
     CHECK_STREQ(c.unlock_cmd, "echo hi");
-    CHECK(c.cmd_as_root == 1);
-    CHECK(c.cmd_before == 1);
+    CHECK(c.lock_cmd_as_root == 1);
+    CHECK(c.unlock_cmd_as_root == 0);
 
-    /* the enums default to shell/after for anything that is not root/before */
+    /* the flags default to shell for anything that is not "root" */
+    config_t d;
+    memset(&d, 0, sizeof(d));
+    config_apply_kv(&d, "lock_cmd_user", "shell");
+    config_apply_kv(&d, "unlock_cmd_user", "root");
+    CHECK(d.lock_cmd_as_root == 0);
+    CHECK(d.unlock_cmd_as_root == 1);
+}
+
+static void test_legacy_cmd_user(void) {
+    /* the old single key (<= v0.2.0) applies to both commands */
+    config_t c;
+    memset(&c, 0, sizeof(c));
+    config_apply_kv(&c, "cmd_user", "root");
+    CHECK(c.lock_cmd_as_root == 1);
+    CHECK(c.unlock_cmd_as_root == 1);
+
     config_t d;
     memset(&d, 0, sizeof(d));
     config_apply_kv(&d, "cmd_user", "shell");
-    config_apply_kv(&d, "cmd_timing", "after");
-    CHECK(d.cmd_as_root == 0);
-    CHECK(d.cmd_before == 0);
+    CHECK(d.lock_cmd_as_root == 0);
+    CHECK(d.unlock_cmd_as_root == 0);
 }
 
 static void test_cmd_bounded(void) {
@@ -72,6 +88,7 @@ int main(void) {
     RUN(test_bools_and_ints);
     RUN(test_escape_key);
     RUN(test_custom_command);
+    RUN(test_legacy_cmd_user);
     RUN(test_cmd_bounded);
     RUN(test_unknown_key_ignored);
     TEST_SUMMARY();

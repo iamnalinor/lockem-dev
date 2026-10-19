@@ -120,10 +120,15 @@ void config_apply_kv(config_t *c, const char *k, const char *v) {
         strncpy(c->lock_cmd, v, sizeof(c->lock_cmd) - 1);
     } else if (!strcmp(k, "unlock_cmd")) {
         strncpy(c->unlock_cmd, v, sizeof(c->unlock_cmd) - 1);
+    } else if (!strcmp(k, "lock_cmd_user")) {
+        c->lock_cmd_as_root = !strcmp(v, "root"); /* default (shell) otherwise */
+    } else if (!strcmp(k, "unlock_cmd_user")) {
+        c->unlock_cmd_as_root = !strcmp(v, "root"); /* default (shell) otherwise */
     } else if (!strcmp(k, "cmd_user")) {
-        c->cmd_as_root = !strcmp(v, "root"); /* default (shell) otherwise */
-    } else if (!strcmp(k, "cmd_timing")) {
-        c->cmd_before = !strcmp(v, "before"); /* default (after) otherwise */
+        /* legacy single key (<= v0.2.0): applied to both commands */
+        int r = !strcmp(v, "root");
+        c->lock_cmd_as_root = r;
+        c->unlock_cmd_as_root = r;
     } else if (!strcmp(k, "lock_pattern"))
         pattern_parse(v, &c->lock_pat);
     else if (!strcmp(k, "unlock_pattern"))

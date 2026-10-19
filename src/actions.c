@@ -220,7 +220,6 @@ static void unlock_one(const char *pkg) {
 
 void act_lock(const config_t *c) {
     log_msg("LOCK (%d pkgs)", c->npkgs);
-    if (c->cmd_before) run_custom("custom lock cmd", c->lock_cmd, c->cmd_as_root);
     if (c->opt_disable_devopts) save_devopts_prev();
     for (int i = 0; i < c->npkgs; i++) lock_one(c, c->pkgs[i]);
     if (c->opt_disable_devopts)
@@ -228,14 +227,15 @@ void act_lock(const config_t *c) {
     if (c->opt_private_space) stop_private_space();
     if (c->opt_lockdown) do_lockdown();
     if (c->opt_vibrate) vibrate();
-    if (!c->cmd_before) run_custom("custom lock cmd", c->lock_cmd, c->cmd_as_root);
+    /* custom command wraps the built-ins: on lock it runs last */
+    run_custom("custom lock cmd", c->lock_cmd, c->lock_cmd_as_root);
 }
 
 void act_unlock(const config_t *c) {
     log_msg("UNLOCK (%d pkgs)", c->npkgs);
-    if (c->cmd_before) run_custom("custom unlock cmd", c->unlock_cmd, c->cmd_as_root);
+    /* custom command wraps the built-ins: on unlock it runs first */
+    run_custom("custom unlock cmd", c->unlock_cmd, c->unlock_cmd_as_root);
     for (int i = 0; i < c->npkgs; i++) unlock_one(c->pkgs[i]);
     if (c->opt_disable_devopts) restore_devopts();
     if (c->opt_vibrate) vibrate();
-    if (!c->cmd_before) run_custom("custom unlock cmd", c->unlock_cmd, c->cmd_as_root);
 }

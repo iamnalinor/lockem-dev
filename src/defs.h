@@ -49,11 +49,13 @@ typedef struct {
     int escape_key;
     int escape_window_sec;
 
-    /* custom command (WebUI "Advanced"): run on lock/unlock, empty = none */
+    /* custom command (WebUI "Advanced"): run on lock/unlock, empty = none.
+       Timing is fixed so the command wraps the built-in actions: the lock
+       command runs after them, the unlock command before them. */
     char lock_cmd[512];
     char unlock_cmd[512];
-    int cmd_as_root; /* 0 = shell (uid 2000), 1 = root */
-    int cmd_before;  /* 1 = before built-in actions, 0 = after */
+    int lock_cmd_as_root;   /* 0 = shell (uid 2000), 1 = root */
+    int unlock_cmd_as_root; /* 0 = shell (uid 2000), 1 = root */
 
     pattern_t lock_pat;
     pattern_t unlock_pat;

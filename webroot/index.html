@@ -78,6 +78,12 @@
 
     <p class="hint">Note: <b>Power + Volume-Down</b> takes a screenshot on Android, so
       it's best not to use that combination in a combo.</p>
+
+    <div class="row">
+      <button id="dbg-lock" type="button">Lock now</button>
+      <button id="dbg-unlock" type="button">Unlock now</button>
+    </div>
+    <p class="hint">Trigger a lock or unlock right now, without the combo.</p>
   </section>
 
   <section>
@@ -114,24 +120,32 @@
         <small>(pm disable instead of disable-user — riskier)</small></label>
 
       <h3>Custom command</h3>
-      <label>On lock <small>(optional shell command; runs as chosen below)</small>
+      <p class="hint">Optional shell commands. The lock command runs after the built-in
+        actions; the unlock command runs before them.</p>
+      <label>On lock <small>(optional)</small>
         <input type="text" id="lock_cmd" class="cmd-input" placeholder="e.g. input keyevent 26"
           autocomplete="off" spellcheck="false"></label>
+      <label class="inline">Run as:
+        <span class="segmented" id="lock_cmd_user" data-value="shell" role="group"
+          aria-label="Run the lock command as">
+          <button type="button" data-value="shell" aria-pressed="true">shell (safer)</button>
+          <button type="button" data-value="root" aria-pressed="false">root</button>
+        </span></label>
+      <p class="warn" id="lock-cmd-root-warn" hidden>The lock command runs as <b>root</b> — a
+        bad command can brick the device or break boot. Prefer shell unless you know exactly
+        what the command does.</p>
+
       <label>On unlock <small>(optional)</small>
         <input type="text" id="unlock_cmd" class="cmd-input" placeholder=""
           autocomplete="off" spellcheck="false"></label>
       <label class="inline">Run as:
-        <select id="cmd_user">
-          <option value="shell">shell (safer)</option>
-          <option value="root">root</option>
-        </select></label>
-      <label class="inline">When:
-        <select id="cmd_timing">
-          <option value="after">after built-in actions</option>
-          <option value="before">before built-in actions</option>
-        </select></label>
-      <p class="warn" id="cmd-root-warn" hidden>Running as <b>root</b> is powerful — a bad
-        command can brick the device or break boot. Prefer shell unless you know exactly
+        <span class="segmented" id="unlock_cmd_user" data-value="shell" role="group"
+          aria-label="Run the unlock command as">
+          <button type="button" data-value="shell" aria-pressed="true">shell (safer)</button>
+          <button type="button" data-value="root" aria-pressed="false">root</button>
+        </span></label>
+      <p class="warn" id="unlock-cmd-root-warn" hidden>The unlock command runs as <b>root</b> — a
+        bad command can brick the device or break boot. Prefer shell unless you know exactly
         what the command does.</p>
 
       <label class="inline">Boot-escape key:
@@ -145,11 +159,6 @@
       <p class="hint">Hold the boot-escape key while the daemon starts (just after you
         unlock the lock screen on boot) to unlock everything — recovery if you forget
         the combo.</p>
-      <div class="row">
-        <button id="dbg-lock" type="button">Lock now</button>
-        <button id="dbg-unlock" type="button">Unlock all</button>
-      </div>
-      <p class="hint">Debug: trigger lock / unlock immediately without the combo.</p>
     </details>
   </section>
 
