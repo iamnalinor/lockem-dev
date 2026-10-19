@@ -44,7 +44,7 @@ static void test_blocked(void) {
     /* ordinary third-party apps are not blocked */
     CHECK(!pkg_blocked("com.foo.bar"));
     CHECK(!pkg_blocked("io.github.a13e300.ksuwebui")); /* WebUI host stays lockable */
-    CHECK(!pkg_blocked("com.android")); /* prefix, not an exact match */
+    CHECK(!pkg_blocked("com.android"));                /* prefix, not an exact match */
     CHECK(!pkg_blocked("com.android.systemui2"));
     CHECK(!pkg_blocked(""));
 }
