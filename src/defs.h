@@ -36,7 +36,6 @@ typedef struct {
     int npkgs;
 
     /* axes / options */
-    int strict_disable;
     int opt_vibrate;
     int opt_private_space;
     int opt_lockdown;

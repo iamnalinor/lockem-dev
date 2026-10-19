@@ -1,9 +1,6 @@
 # lockem configuration (flat key=value; edited by WebUI or by hand)
 # Packages to hide are listed separately in packages.list (one per line).
 
-# disable axis: 0 = pm disable-user (per-user, safe, default); 1 = strict pm disable (global, risky)
-strict_disable=0
-
 # options (1=on, 0=off)
 opt_vibrate=1
 opt_private_space=1

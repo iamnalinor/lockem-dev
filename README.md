@@ -25,11 +25,12 @@ it is meant to run on any rooted Android device, across root managers.
 A small native daemon (`lockemd`, started `late_start` by `service.sh`) reads the
 power/volume evdev stream **passively** and watches for two combos:
 
-- **lock combo** → for each selected package: `pm disable-user` (or strict
-  `pm disable`), `pm hide`, `am force-stop` (the force-stop also clears the recents
-  card). Optional extras: vibrate, lock Private Space, lockdown (blocks biometrics),
-  hide Developer Options, and a **custom command** you supply (run as shell or root,
-  before or after the built-in actions).
+- **lock combo** → for each selected package: `pm disable` (falls back to
+  `pm disable-user` if the build rejects the global disable), `pm hide`,
+  `am force-stop` (the force-stop also clears the recents card). Optional extras:
+  vibrate, lock Private Space, lockdown (blocks biometrics), hide Developer
+  Options, and a **custom command** you supply (run as shell or root; the lock
+  command runs after the built-in actions, the unlock command before them).
 - **unlock combo** → `pm unhide` + `pm enable` for every selected package, and
   restores Developer Options.
 
@@ -128,7 +129,6 @@ so it recovers from `adb su`, recovery, or a GSI.
 | `opt_disable_devopts` | Hide Developer Options on lock (**adb stays on** — recovery preserved) |
 | `opt_autolock_screenoff` | Auto-lock when the screen turns off |
 | `opt_autolock_timeout` | Auto-lock after N minutes of inactivity |
-| `strict_disable` | Use global `pm disable` (riskier) instead of `pm disable-user` |
 
 See `default-config` for every key and `docs/RISKS.md` for the risk of each.
 

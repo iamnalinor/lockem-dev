@@ -7,9 +7,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-/* Haptic pulse length for lock/unlock feedback (ms). 80 ms was imperceptible on
-   Pixel-class LRA actuators. */
-#define VIBRATE_MS 200
+/* Haptic feedback for lock/unlock: a double buzz (two pulses) fired at the start
+   of the action so it acknowledges the combo immediately, not after the work.
+   80 ms was imperceptible on Pixel-class LRA actuators. */
+#define VIBRATE_MS 100    /* length of one pulse */
+#define VIBRATE_GAP_MS 80 /* silence between the two pulses */
 
 /* Run a shell command, logging its combined stdout+stderr (any non-empty lines)
    and its exit status under a short label, so an action's result is visible in
@@ -153,6 +155,9 @@ static void vibrate(void) {
     for (int i = 0; cmds[i]; i++) {
         int rc = run_logged("vibrate", cmds[i], VIBRATE_MS);
         if (rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
+            /* double buzz: a second pulse after a short gap, via the same command */
+            usleep((VIBRATE_MS + VIBRATE_GAP_MS) * 1000);
+            run_logged("vibrate", cmds[i], VIBRATE_MS);
             log_msg("vibrate: ok via '%s'", cmds[i]);
             return;
         }
@@ -188,18 +193,16 @@ static void lock_one(const config_t *c, const char *pkg) {
         return;
     }
 
-    if (c->strict_disable) {
-        char out[256];
-        char cmd[320];
-        snprintf(cmd, sizeof(cmd), "pm disable %s 2>&1", pkg);
-        run_capture(cmd, out, sizeof(out));
-        log_msg("  pm disable %s | %s", pkg, out[0] ? out : "(no output)");
-        /* shell/user builds reject global disable -> fall back */
-        if (strstr(out, "Shell cannot") || strstr(out, "Exception") || strstr(out, "Error") ||
-            strstr(out, "cannot be") || out[0] == 0) {
-            run_logged("pm disable-user", "pm disable-user --user 0 %s", pkg);
-        }
-    } else {
+    /* Global `pm disable` so the app disappears from Settings → Apps entirely
+       (disable-user leaves it listed as "Disabled" and re-enablable). Fall back to
+       per-user disable-user if a build rejects the global disable. */
+    char out[256];
+    char cmd[320];
+    snprintf(cmd, sizeof(cmd), "pm disable %s 2>&1", pkg);
+    run_capture(cmd, out, sizeof(out));
+    log_msg("  pm disable %s | %s", pkg, out[0] ? out : "(no output)");
+    if (strstr(out, "Shell cannot") || strstr(out, "Exception") || strstr(out, "Error") ||
+        strstr(out, "cannot be") || out[0] == 0) {
         run_logged("pm disable-user", "pm disable-user --user 0 %s", pkg);
     }
     run_logged("pm hide", "pm hide %s", pkg);
@@ -220,22 +223,22 @@ static void unlock_one(const char *pkg) {
 
 void act_lock(const config_t *c) {
     log_msg("LOCK (%d pkgs)", c->npkgs);
+    if (c->opt_vibrate) vibrate(); /* acknowledge the combo right away */
     if (c->opt_disable_devopts) save_devopts_prev();
     for (int i = 0; i < c->npkgs; i++) lock_one(c, c->pkgs[i]);
     if (c->opt_disable_devopts)
         run_logged("disable devopts", "settings put global development_settings_enabled 0");
     if (c->opt_private_space) stop_private_space();
     if (c->opt_lockdown) do_lockdown();
-    if (c->opt_vibrate) vibrate();
     /* custom command wraps the built-ins: on lock it runs last */
     run_custom("custom lock cmd", c->lock_cmd, c->lock_cmd_as_root);
 }
 
 void act_unlock(const config_t *c) {
     log_msg("UNLOCK (%d pkgs)", c->npkgs);
+    if (c->opt_vibrate) vibrate(); /* acknowledge the combo right away */
     /* custom command wraps the built-ins: on unlock it runs first */
     run_custom("custom unlock cmd", c->unlock_cmd, c->unlock_cmd_as_root);
     for (int i = 0; i < c->npkgs; i++) unlock_one(c->pkgs[i]);
     if (c->opt_disable_devopts) restore_devopts();
-    if (c->opt_vibrate) vibrate();
 }

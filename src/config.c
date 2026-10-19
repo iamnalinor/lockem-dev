@@ -93,9 +93,7 @@ static int parse_bool(const char *v) {
 /* Apply one key=value pair to the config. Shared by config_load() and the unit tests;
    unknown keys are ignored. The caller zeroes/defaults the config first. */
 void config_apply_kv(config_t *c, const char *k, const char *v) {
-    if (!strcmp(k, "strict_disable"))
-        c->strict_disable = parse_bool(v);
-    else if (!strcmp(k, "opt_vibrate"))
+    if (!strcmp(k, "opt_vibrate"))
         c->opt_vibrate = parse_bool(v);
     else if (!strcmp(k, "opt_private_space"))
         c->opt_private_space = parse_bool(v);
@@ -138,7 +136,6 @@ void config_apply_kv(config_t *c, const char *k, const char *v) {
 int config_load(config_t *c) {
     memset(c, 0, sizeof(*c));
     /* defaults */
-    c->strict_disable = 0;
     c->hold_ms = 500;
     c->escape_key = KEY_VOLUMEUP;
     c->escape_window_sec = 6;

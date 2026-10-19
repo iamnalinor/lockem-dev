@@ -171,7 +171,7 @@ function renderRecipe(kind) {
 
 /* ---- config load / form sync ------------------------------------------- */
 const BOOL_OPTS = [
-  "strict_disable", "opt_vibrate", "opt_private_space", "opt_lockdown",
+  "opt_vibrate", "opt_private_space", "opt_lockdown",
   "opt_disable_devopts", "opt_autolock_screenoff", "opt_autolock_timeout",
 ];
 const NUM_OPTS = ["autolock_timeout_min", "hold_ms", "escape_window_sec"];

@@ -158,10 +158,12 @@ smoke run, then close what the VM couldn't:
 - **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
   STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN --user 0`; verify the next unlock is forced to
   PIN/pattern (biometrics rejected) and that an already-off screen is not woken.
-- `pm hide` visibility in Settings → Apps on A17; real recents-card removal; Private
+- Resolved on-device: `pm hide` does **not** remove the app from Settings → Apps (it
+  stays listed as "Disabled" and re-enablable), so lockem now always uses global
+  `pm disable`, which removes it. Still verify real recents-card removal and Private
   Space `am stop-user`.
-- `strict_disable`: does `pm disable` pass from root on the phone, or does it fall back
-  to `disable-user`?
+- `pm disable` passes from the root daemon; the `disable-user` fallback is only hit when
+  a build rejects the global disable.
 - Boot-escape timing: which keys the firmware grabs on early boot, and how long the
   startup window needs to be to reliably catch a held Volume-Up.
 - Which combos the system intercepts (screenshot / power-menu / SOS), to confirm the
