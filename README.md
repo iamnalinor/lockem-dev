@@ -64,7 +64,8 @@ the click-vs-hold threshold. The 4 s reset window is a fixed constant.
 ## Install
 
 1. Build the module zip (see **Build**) or download a release.
-2. Install `lockem.zip` through your root manager's app (Magisk / KernelSU / APatch).
+2. Install the module zip (`lockem-<version>.zip`) through your root manager's app
+   (Magisk / KernelSU / APatch).
 3. Reboot.
 4. Open the **WebUI**: tap the module's **Action** button in your root manager. Magisk
    and APatch don't render a module's WebUI themselves, so `action.sh` hands off to a

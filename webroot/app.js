@@ -370,7 +370,14 @@ async function record(kind) {
   const action = kind === "lock" ? "record_lock" : "record_unlock";
   await sh("rm -f " + shq(RESULT));
   await sh("mkdir -p " + shq(CTL));
-  await writeFile(REQUEST, "id=" + id + "\naction=" + action + "\n");
+  const wrote = await writeFile(REQUEST, "id=" + id + "\naction=" + action + "\n");
+  if (!wrote) {
+    btn.setAttribute("aria-pressed", "false");
+    btn.textContent = origLabel;
+    recording = false;
+    status.textContent = "couldn't start recording — write failed";
+    return;
+  }
 
   const field = kind === "lock" ? "lock_pattern" : "unlock_pattern";
   let resStatus = null;

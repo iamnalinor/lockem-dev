@@ -177,6 +177,7 @@ static void drain_ctl_and_handle(int ifd, input_t *in, config_t *c, matcher_t *m
             struct inotify_event *e = (struct inotify_event *)p;
             if (e->len > 0) {
                 const char *nm = e->name;
+                int handled = 1;
                 if (!strcmp(nm, "reload")) {
                     *dirty = 1;
                 } else if (!strcmp(nm, "lock_now")) {
@@ -190,10 +191,18 @@ static void drain_ctl_and_handle(int ifd, input_t *in, config_t *c, matcher_t *m
                 } else if (!strcmp(nm, "record_unlock")) {
                     do_record(in, "record_unlock", NULL);
                     *dirty = 1;
+                } else {
+                    handled = 0;
                 }
-                char path[300];
-                snprintf(path, sizeof(path), "%s/%s", CTL_DIR, nm);
-                remove(path);
+                /* Consume (delete) only recognized signal files. Never remove an
+                   unrecognized name — in particular the WebUI's `request.tmp`, which
+                   gets an IN_CLOSE_WRITE before its `mv` into place: deleting it here
+                   would race the rename and silently break recording. */
+                if (handled) {
+                    char path[300];
+                    snprintf(path, sizeof(path), "%s/%s", CTL_DIR, nm);
+                    remove(path);
+                }
             }
             p += sizeof(struct inotify_event) + e->len;
         }

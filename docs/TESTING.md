@@ -81,14 +81,14 @@ functional pass and leave the 16 KB-load check to the real device (Track B).
 **3. Build the x86_64 daemon and package** (on your build host, needs an NDK r26+):
 ```bash
 export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/<version>"   # or set ANDROID_SDK_ROOT
-bash build.sh && bash pack.sh                               # -> dist/lockem.zip
+bash build.sh && bash pack.sh                               # -> dist/lockem-<version>.zip
 ```
 
 **4. Install the module and reboot.** Push the zip, then install it through the root
 manager app (Magisk/KernelSU/APatch → Modules → Install from storage), and reboot:
 ```bash
-adb push dist/lockem.zip /sdcard/Download/
-# install dist/lockem.zip from the manager app UI, then:
+adb push dist/lockem-*.zip /sdcard/Download/
+# install the lockem-<version>.zip from the manager app UI, then:
 adb reboot
 ```
 After reboot, verify from a root shell: `adb shell su -c 'lockem status'` and
