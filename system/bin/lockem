@@ -17,11 +17,15 @@ do_unlock() {
     case "$p" in \#*) continue ;; esac
     # reject anything but [A-Za-z0-9._] (junk / shell-injection guard)
     case "$p" in *[!A-Za-z0-9._]*) echo "lockem: skip invalid pkg: $p"; continue ;; esac
-    # </dev/null is load-bearing: pm/cmd run app_process, which otherwise swallows
-    # this loop's stdin (packages.list) and the unhide/enable silently no-op.
-    pm unhide "$p" </dev/null >/dev/null 2>&1
-    pm enable "$p" </dev/null >/dev/null 2>&1
-    pm enable --user 0 "$p" </dev/null >/dev/null 2>&1
+    # </dev/null is load-bearing: pm/cmd run app_process, which otherwise swallows this
+    # loop's stdin (packages.list) and the unhide/enable silently no-op. We CAPTURE the
+    # output (command substitution → a shell pipe) and let the shell append it to the log,
+    # rather than handing pm/cmd a direct fd to lockem.log: passing the daemon's own log
+    # fd into the package service fails ("Failed transaction"). This mirrors the daemon's
+    # run_logged (popen + the daemon writes the log).
+    out=$(pm unhide "$p" </dev/null 2>&1; pm enable "$p" </dev/null 2>&1; \
+          pm enable --user 0 "$p" </dev/null 2>&1)
+    { echo "[cli unlock] $p"; [ -n "$out" ] && echo "$out"; } >> "$LDIR/lockem.log"
     echo "unlocked: $p"
   done < "$PKG"
   if [ -f "$LDIR/state" ]; then
@@ -29,10 +33,11 @@ do_unlock() {
     devopts_prev=$(grep -E '^devopts_prev=' "$LDIR/state" 2>/dev/null | head -n1 | cut -d= -f2-)
     if [ -n "$devopts_prev" ]; then
       if [ "$devopts_prev" = "null" ]; then
-        settings delete global development_settings_enabled </dev/null >/dev/null 2>&1
+        out=$(settings delete global development_settings_enabled </dev/null 2>&1)
       else
-        settings put global development_settings_enabled "$devopts_prev" </dev/null >/dev/null 2>&1
+        out=$(settings put global development_settings_enabled "$devopts_prev" </dev/null 2>&1)
       fi
+      { echo "[cli unlock] devopts restore"; [ -n "$out" ] && echo "$out"; } >> "$LDIR/lockem.log"
     fi
   fi
   echo "lockem: unlock complete"

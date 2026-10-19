@@ -20,3 +20,4 @@ build_and_run() {
 
 build_and_run "$HERE/run_pattern" "$HERE/test_pattern.c" "$SRC/pattern.c" "$SRC/config.c"
 build_and_run "$HERE/run_pkgname" "$HERE/test_pkgname.c" "$SRC/pkgname.c"
+build_and_run "$HERE/run_config" "$HERE/test_config.c" "$SRC/config.c"

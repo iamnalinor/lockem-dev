@@ -81,14 +81,17 @@ functional pass and leave the 16 KB-load check to the real device (Track B).
 **3. Build the x86_64 daemon and package** (on your build host, needs an NDK r26+):
 ```bash
 export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/<version>"   # or set ANDROID_SDK_ROOT
-bash build.sh && bash pack.sh                               # -> dist/lockem.zip
+bash build.sh && bash pack.sh                               # -> dist/lockem-<version>.zip
 ```
+`build.sh` also compiles the app-label/icon helper to `bin/labeldump.dex` when a JDK plus
+an SDK platform (`android.jar`) and build-tools (`d8`) are found (set `ANDROID_SDK_ROOT`);
+if they aren't, it skips the dex and the WebUI shows package names (no labels/icons).
 
 **4. Install the module and reboot.** Push the zip, then install it through the root
 manager app (Magisk/KernelSU/APatch → Modules → Install from storage), and reboot:
 ```bash
-adb push dist/lockem.zip /sdcard/Download/
-# install dist/lockem.zip from the manager app UI, then:
+adb push dist/lockem-*.zip /sdcard/Download/
+# install the lockem-<version>.zip from the manager app UI, then:
 adb reboot
 ```
 After reboot, verify from a root shell: `adb shell su -c 'lockem status'` and
@@ -121,6 +124,19 @@ Settings → Apps → See all on A16.
 7. Remove the module (or `lockem unlock`) → full rollback.
 8. Fail-safe: `kill` the daemon while locked → buttons keep working (no grab was held);
    apps recoverable via `pm enable` / reinstall.
+9. App list shows **real labels + icons** (resolved by `bin/labeldump.dex` via
+   `app_process`); an app with no label falls back to its package name, a missing icon
+   simply shows none. The list is three blocks in order **Apps / Magisk-related / System
+   apps**; "Show system apps" reveals the last. (If `labeldump.dex` wasn't built — no SDK
+   build-tools at build time — the list degrades to package names with no icons.)
+10. **Custom command** (Advanced): set a lock and/or unlock command, try both `shell` and
+    `root`, and both `before`/`after` — trigger lock/unlock and confirm it ran (right
+    order) and that its output + exit code show in the log (`lockem log` / WebUI viewer).
+11. **Stop recording**: start a record, press the button again → the grab ends at once and
+    the previous combo is kept (`status=cancelled`).
+12. Command output (all actions) is now logged — `lockem log` shows `pm hide … rc=0` etc.
+13. Unlock restores **every** listed package unconditionally (`pm unhide`/`enable`),
+    regardless of its state when locked — by design.
 
 ## 3. Real device (Track B) — enforcing hardware
 
@@ -128,13 +144,22 @@ Reference device tested: **Pixel 9a / Android 16** — substitute your own. Repe
 smoke run, then close what the VM couldn't:
 
 - **SELinux:** collect real denials — `dmesg | grep 'avc: denied'` — for reading
-  `/dev/input/*` (and the `EVIOCGRAB` ioctl during recording). Extend `sepolicy.rule`
-  with the exact types/classes from the denials (don't guess types).
+  `/dev/input/*` (and the `EVIOCGRAB` ioctl during recording), and for the binder calls
+  behind `cmd vibrator_manager` and `cmd lock_settings`. Extend `sepolicy.rule` with the
+  exact types/classes from the denials (don't guess types).
 - **Passive match on hardware buttons:** the daemon catches the combo from the live
   stream; incidental system reactions are tolerated. The temporary record grab really
   silences button reactions while recording.
-- Physical vibration; real lockdown/biometric behavior; `pm hide` visibility in
-  Settings → Apps on A16; real recents-card removal; Private Space `am stop-user`.
+- **Record handshake:** a single Record press runs exactly one grab (one
+  `record: start` in the log), and a timed-out/empty capture must NOT wipe a good
+  pattern (log shows `kept previous pattern`, config unchanged).
+- **Vibration:** confirm a pulse and check the log for `vibrate: ok via '…'` (the
+  chain tries `cmd vibrator_manager synced -f oneshot <ms>` first).
+- **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
+  STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN --user 0`; verify the next unlock is forced to
+  PIN/pattern (biometrics rejected) and that an already-off screen is not woken.
+- `pm hide` visibility in Settings → Apps on A16; real recents-card removal; Private
+  Space `am stop-user`.
 - `strict_disable`: does `pm disable` pass from root on the phone, or does it fall back
   to `disable-user`?
 - Boot-escape timing: which keys the firmware grabs on early boot, and how long the

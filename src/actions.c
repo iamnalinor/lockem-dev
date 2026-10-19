@@ -5,14 +5,41 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
-static int run(const char *fmt, ...) {
-    char cmd[1024];
+/* Haptic pulse length for lock/unlock feedback (ms). 80 ms was imperceptible on
+   Pixel-class LRA actuators. */
+#define VIBRATE_MS 200
+
+/* Run a shell command, logging its combined stdout+stderr (any non-empty lines)
+   and its exit status under a short label, so an action's result is visible in
+   lockem.log instead of being silently discarded. Returns the raw pclose status
+   (use WIFEXITED/WEXITSTATUS), or -1 on spawn failure. */
+static int run_logged(const char *label, const char *fmt, ...) {
+    char cmd[4096];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(cmd, sizeof(cmd), fmt, ap);
     va_end(ap);
-    int rc = system(cmd);
+
+    /* merge stderr into stdout so one pipe captures everything */
+    char wrapped[4200];
+    snprintf(wrapped, sizeof(wrapped), "%s 2>&1", cmd);
+
+    FILE *p = popen(wrapped, "r");
+    if (!p) {
+        log_msg("%s: popen failed", label);
+        return -1;
+    }
+    char line[512];
+    while (fgets(line, sizeof(line), p)) {
+        size_t n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
+        if (line[0]) log_msg("  %s | %s", label, line);
+    }
+    int rc = pclose(p);
+    int ec = (rc != -1 && WIFEXITED(rc)) ? WEXITSTATUS(rc) : -1;
+    log_msg("%s: rc=%d", label, ec);
     return rc;
 }
 
@@ -25,6 +52,44 @@ static void run_capture(const char *cmd, char *out, size_t outsz) {
         while (n && (out[n - 1] == '\n' || out[n - 1] == '\r' || out[n - 1] == ' ')) out[--n] = 0;
     }
     pclose(p);
+}
+
+/* single-quote a string for safe use in `su 2000 -c '<...>'` (' -> '\'') */
+static void sh_squote(const char *in, char *out, size_t outsz) {
+    size_t o = 0;
+    if (o + 1 < outsz) out[o++] = '\'';
+    for (const char *p = in; *p; p++) {
+        if (*p == '\'') {
+            if (o + 4 >= outsz) break;
+            out[o++] = '\'';
+            out[o++] = '\\';
+            out[o++] = '\'';
+            out[o++] = '\'';
+        } else {
+            if (o + 1 >= outsz) break;
+            out[o++] = *p;
+        }
+    }
+    if (o + 1 < outsz) out[o++] = '\'';
+    out[o < outsz ? o : outsz - 1] = 0;
+}
+
+/* Max wall-clock for a user custom command. It runs synchronously on the daemon's
+   single-threaded event loop, so a hung command would stall combo detection — `timeout`
+   caps that (a timed-out command logs rc=124). Keep custom commands quick. */
+#define CUSTOM_CMD_TIMEOUT_SEC 60
+
+/* Run a user-configured custom command as root or dropped to the shell user
+   (uid 2000, via Magisk `su`), under a timeout, logging its output. No-op when empty. */
+static void run_custom(const char *label, const char *cmd, int as_root) {
+    if (!cmd || !cmd[0]) return;
+    char q[2100];
+    sh_squote(cmd, q, sizeof(q));
+    if (as_root) {
+        run_logged(label, "timeout %d sh -c %s", CUSTOM_CMD_TIMEOUT_SEC, q);
+    } else {
+        run_logged(label, "timeout %d su 2000 -c %s", CUSTOM_CMD_TIMEOUT_SEC, q);
+    }
 }
 
 static int state_has_devopts(void) {
@@ -67,29 +132,50 @@ static void restore_devopts(void) {
     fclose(f);
     if (!prev[0]) return;
     if (strcmp(prev, "null") == 0)
-        run("settings delete global development_settings_enabled >/dev/null 2>&1");
+        run_logged("restore devopts", "settings delete global development_settings_enabled");
     else
-        run("settings put global development_settings_enabled %s >/dev/null 2>&1", prev);
+        run_logged("restore devopts", "settings put global development_settings_enabled %s", prev);
     remove(STATE_FILE);
 }
 
 static void vibrate(void) {
-    run("cmd vibrator_manager vibrate 80 >/dev/null 2>&1 || cmd vibrator vibrate 80 >/dev/null "
-        "2>&1");
+    /* Android's vibrator CLI changed across versions and the right syntax varies by
+       device, so try candidates in order and stop at the first that exits 0. `-f`
+       forces the pulse past haptic-intensity settings. Each attempt's output + rc is
+       logged (via run_logged), and we log which path worked (or that all failed). */
+    static const char *cmds[] = {
+        "cmd vibrator_manager synced -f oneshot %d", /* A12+, forced */
+        "cmd vibrator_manager synced oneshot %d",    /* A12+, if -f rejected */
+        "cmd vibrator vibrate %d",                   /* legacy service, <=A11 */
+        "cmd vibrator_manager vibrate %d",           /* old form, likely dead */
+        NULL,
+    };
+    for (int i = 0; cmds[i]; i++) {
+        int rc = run_logged("vibrate", cmds[i], VIBRATE_MS);
+        if (rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
+            log_msg("vibrate: ok via '%s'", cmds[i]);
+            return;
+        }
+    }
+    log_msg("vibrate: all methods failed");
 }
 
 static void stop_private_space(void) {
     /* find the Private space user id and stop (lock) it */
-    run("for id in $(pm list users | awk -F'[{:]' '/[Pp]rivate/{print $2}'); do "
-        "am stop-user \"$id\" >/dev/null 2>&1; done");
+    run_logged("stop private space",
+               "for id in $(pm list users | awk -F'[{:]' '/[Pp]rivate/{print $2}'); do "
+               "am stop-user \"$id\"; done");
 }
 
 static void do_lockdown(void) {
-    /* No clean shell trigger for true lockdown; degrade to screen-off/lock if awake. */
-    run("dumpsys power 2>/dev/null | grep -q 'mWakefulness=Awake' && input keyevent 26 >/dev/null "
-        "2>&1");
-    /* best-effort strong-auth attempt (often a no-op; kept for device verification) */
-    run("cmd lock_settings require-strong-auth >/dev/null 2>&1");
+    /* Real user-lockdown: set the strong-auth flag so the next unlock requires
+       PIN/pattern and biometrics are blocked (the point of lockdown). This does NOT
+       touch the display — the device locks on its own and an already-off screen is
+       never woken. The flag clears on the next successful PIN/pattern auth. (No
+       `--user 0`: the subcommand ignores it and applies to the lockdown context
+       regardless — verified on-device it logged USER_ID -1 with the arg present.) */
+    run_logged("lockdown",
+               "cmd lock_settings require-strong-auth STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN");
 }
 
 static void lock_one(const config_t *c, const char *pkg) {
@@ -107,16 +193,17 @@ static void lock_one(const config_t *c, const char *pkg) {
         char cmd[320];
         snprintf(cmd, sizeof(cmd), "pm disable %s 2>&1", pkg);
         run_capture(cmd, out, sizeof(out));
+        log_msg("  pm disable %s | %s", pkg, out[0] ? out : "(no output)");
         /* shell/user builds reject global disable -> fall back */
         if (strstr(out, "Shell cannot") || strstr(out, "Exception") || strstr(out, "Error") ||
             strstr(out, "cannot be") || out[0] == 0) {
-            run("pm disable-user --user 0 %s >/dev/null 2>&1", pkg);
+            run_logged("pm disable-user", "pm disable-user --user 0 %s", pkg);
         }
     } else {
-        run("pm disable-user --user 0 %s >/dev/null 2>&1", pkg);
+        run_logged("pm disable-user", "pm disable-user --user 0 %s", pkg);
     }
-    run("pm hide %s >/dev/null 2>&1", pkg);
-    run("am force-stop %s >/dev/null 2>&1", pkg); /* also clears the recents card */
+    run_logged("pm hide", "pm hide %s", pkg);
+    run_logged("am force-stop", "am force-stop %s", pkg); /* also clears the recents card */
     log_msg("locked: %s", pkg);
 }
 
@@ -125,26 +212,30 @@ static void unlock_one(const char *pkg) {
         log_msg("skip invalid pkg name");
         return;
     }
-    run("pm unhide %s >/dev/null 2>&1", pkg);
-    run("pm enable %s >/dev/null 2>&1", pkg);
-    run("pm enable --user 0 %s >/dev/null 2>&1", pkg);
+    run_logged("pm unhide", "pm unhide %s", pkg);
+    run_logged("pm enable", "pm enable %s", pkg);
+    run_logged("pm enable --user 0", "pm enable --user 0 %s", pkg);
     log_msg("unlocked: %s", pkg);
 }
 
 void act_lock(const config_t *c) {
     log_msg("LOCK (%d pkgs)", c->npkgs);
+    if (c->cmd_before) run_custom("custom lock cmd", c->lock_cmd, c->cmd_as_root);
     if (c->opt_disable_devopts) save_devopts_prev();
     for (int i = 0; i < c->npkgs; i++) lock_one(c, c->pkgs[i]);
     if (c->opt_disable_devopts)
-        run("settings put global development_settings_enabled 0 >/dev/null 2>&1");
+        run_logged("disable devopts", "settings put global development_settings_enabled 0");
     if (c->opt_private_space) stop_private_space();
     if (c->opt_lockdown) do_lockdown();
     if (c->opt_vibrate) vibrate();
+    if (!c->cmd_before) run_custom("custom lock cmd", c->lock_cmd, c->cmd_as_root);
 }
 
 void act_unlock(const config_t *c) {
     log_msg("UNLOCK (%d pkgs)", c->npkgs);
+    if (c->cmd_before) run_custom("custom unlock cmd", c->unlock_cmd, c->cmd_as_root);
     for (int i = 0; i < c->npkgs; i++) unlock_one(c->pkgs[i]);
     if (c->opt_disable_devopts) restore_devopts();
     if (c->opt_vibrate) vibrate();
+    if (!c->cmd_before) run_custom("custom unlock cmd", c->unlock_cmd, c->cmd_as_root);
 }

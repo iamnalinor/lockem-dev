@@ -2,12 +2,14 @@
 #include <ctype.h>
 #include <string.h>
 
-/* packages we refuse to lock — hiding/force-stopping these can destabilize the
- * system or break the root-grant / recovery chain lockem itself relies on.
- * The root-manager apps are blocked on purpose: hiding the one that shows the su
- * prompt can wedge new su grants. To hide the manager, use the manager's own
- * repackage/hide feature instead. (The WebUI host — KsuWebUI/MMRL — is NOT blocked:
- * hiding it only costs the config UI until unlock, a deliberate user choice.) */
+/* HARD blocklist — packages we refuse to lock unconditionally, because
+ * hiding/force-stopping them would brick boot or destabilize the UI/system.
+ *
+ * Root-manager apps and WebUI hosts are deliberately NOT here: hiding the Magisk/
+ * KernelSU/APatch app is a legitimate anti-detection feature. The WebUI gates them
+ * behind an explicit confirm in its "Magisk-related" section (a deliberate, riskier
+ * user choice — a hidden manager can't show a *new* su prompt until unlock), rather
+ * than the daemon blocking them outright. */
 static const char *BLOCKLIST[] = {"android",
                                   "com.android.systemui",
                                   "com.android.settings",
@@ -16,9 +18,6 @@ static const char *BLOCKLIST[] = {"android",
                                   "com.google.android.gms",
                                   "com.android.phone",
                                   "com.android.shell",
-                                  "com.topjohnwu.magisk", /* Magisk manager */
-                                  "me.weishu.kernelsu",   /* KernelSU manager */
-                                  "me.bmax.apatch",       /* APatch manager */
                                   NULL};
 
 int pkg_valid(const char *pkg) {

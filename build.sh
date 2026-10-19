@@ -49,6 +49,44 @@ fi
 
 echo "- using ndk-build: $NDK_BUILD"
 
+# --- app_process label/icon helper (optional) -------------------------------
+# Compile src/labeldump/LabelDump.java to a single ABI-independent dex that the
+# WebUI runs via app_process to resolve real app labels + icons. Best-effort: if
+# the SDK platform / build-tools (d8) / a JDK aren't all present, skip it — the
+# WebUI then falls back to package names and no icons.
+winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
+build_labeldump() {
+  local sdk jar d8
+  sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+  if [ -z "$sdk" ] && [ -n "${NDK:-}" ]; then sdk="${NDK%/ndk/*}"; fi
+  if [ -z "$sdk" ] || [ ! -d "$sdk" ]; then
+    echo "- labeldump: no Android SDK found; skipping (WebUI will show package names)"; return 0
+  fi
+  # shellcheck disable=SC2012
+  jar="$(ls -1 "$sdk/platforms"/*/android.jar 2>/dev/null | sort -V | tail -n1)"
+  # shellcheck disable=SC2012
+  d8="$(ls -1 "$sdk/build-tools"/*/d8 "$sdk/build-tools"/*/d8.bat 2>/dev/null | sort -V | tail -n1)"
+  if ! command -v javac >/dev/null 2>&1 || [ -z "$jar" ] || [ -z "$d8" ]; then
+    echo "- labeldump: javac / android.jar / d8 not all present; skipping"; return 0
+  fi
+
+  echo "- building labeldump.dex (javac + d8)"
+  rm -rf src/labeldump/classes src/labeldump/dexout
+  mkdir -p src/labeldump/classes src/labeldump/dexout
+
+  javac -source 8 -target 8 -bootclasspath "$(winpath "$jar")" \
+    -d "$(winpath src/labeldump/classes)" "$(winpath src/labeldump/LabelDump.java)"
+
+  "$d8" --min-api 26 --lib "$(winpath "$jar")" --output "$(winpath src/labeldump/dexout)" \
+    "$(winpath src/labeldump/classes/com/lockem/LabelDump.class)"
+
+  cp -f src/labeldump/dexout/classes.dex bin/labeldump.dex
+  rm -rf src/labeldump/classes src/labeldump/dexout
+  echo "- built: bin/labeldump.dex"
+  ls -l bin/labeldump.dex
+}
+
 # --- build ------------------------------------------------------------------
 rm -rf src/obj src/libs
 "$NDK_BUILD" \
@@ -64,3 +102,6 @@ chmod 0755 bin/lockemd-arm64 bin/lockemd-x86_64
 
 echo "- built: bin/lockemd-arm64, bin/lockemd-x86_64"
 ls -l bin/lockemd-arm64 bin/lockemd-x86_64
+
+# --- app_process helper (best-effort) ---------------------------------------
+build_labeldump
