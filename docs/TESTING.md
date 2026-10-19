@@ -4,7 +4,7 @@ Two tracks: a rooted emulator (functional logic) and a real rooted device (thing
 VM can't be trusted for). Plus host unit tests that need neither.
 
 > lockem is meant to run on any rooted Android device. So far it has only been tested
-> on a **Pixel 9a / Android 16**, which is the reference device named under Track B —
+> on a **Pixel 9a / Android 17**, which is the reference device named under Track B —
 > substitute your own device there.
 
 ## 0. Host unit tests (no device, no NDK)
@@ -109,7 +109,7 @@ evdev events (`getevent -lp`) and are read passively.
 
 SELinux (permissive), real vibration / biometric lockdown, real recents-card removal and
 Private Space behavior on hardware, and whether `pm hide` really removes an app from
-Settings → Apps → See all on A16.
+Settings → Apps → See all on A17.
 
 ## 2. Smoke run (after installing the zip)
 
@@ -140,7 +140,7 @@ Settings → Apps → See all on A16.
 
 ## 3. Real device (Track B) — enforcing hardware
 
-Reference device tested: **Pixel 9a / Android 16** — substitute your own. Repeat the
+Reference device tested: **Pixel 9a / Android 17** — substitute your own. Repeat the
 smoke run, then close what the VM couldn't:
 
 - **SELinux:** collect real denials — `dmesg | grep 'avc: denied'` — for reading
@@ -158,7 +158,7 @@ smoke run, then close what the VM couldn't:
 - **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
   STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN --user 0`; verify the next unlock is forced to
   PIN/pattern (biometrics rejected) and that an already-off screen is not woken.
-- `pm hide` visibility in Settings → Apps on A16; real recents-card removal; Private
+- `pm hide` visibility in Settings → Apps on A17; real recents-card removal; Private
   Space `am stop-user`.
 - `strict_disable`: does `pm disable` pass from root on the phone, or does it fall back
   to `disable-user`?

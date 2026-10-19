@@ -6,7 +6,7 @@ portable C that uses only stock `pm` / `cmd` / `am` and reads evdev generically,
 it is meant to run on any rooted Android device, across root managers.
 
 > **Compatibility.** lockem targets rooted Android generally (arm64 and x86_64).
-> So far it has been **tested on a Pixel 9a running Android 16** (physical device) and
+> So far it has been **tested on a Pixel 9a running Android 17** (physical device) and
 > on a **rooted Android emulator (Google APIs, 16 KB pages)** for the functional logic —
 > other devices and Android versions *should* work but are unverified. A few behaviors are
 > inherently device-dependent (see [docs/RISKS.md](docs/RISKS.md) §3 and
