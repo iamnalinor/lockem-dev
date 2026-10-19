@@ -17,9 +17,6 @@ locked app is hidden. Each mode needs a matching restore on unlock. Two modes:
    are not system/preloaded (whether the APK is still resolvable for
    `install-existing`).
 
-Notes:
-- `hide + disable-user` was considered and dropped: it leaves the app visible and
-  re-enablable in Settings, which defeats the lock.
-- Keep the package blocklist + the WebUI system/Magisk confirm as guards for every
-  mode, since uninstall/global-disable on the wrong package can destabilize the
-  system.
+Note: keep the package blocklist + the WebUI system/Magisk confirm as guards for
+every mode, since uninstall/global-disable on the wrong package can destabilize the
+system.
