@@ -13,13 +13,16 @@
 #define LOG_MAX_BYTES (256 * 1024)
 
 static FILE *g_logf = NULL;
-static int   g_count = 0;
+static int g_count = 0;
 
 static void rotate_if_needed(void) {
     struct stat st;
     if (stat(LOG_FILE, &st) == 0 && st.st_size > LOG_MAX_BYTES) {
-        if (g_logf) { fclose(g_logf); g_logf = NULL; }
-        rename(LOG_FILE, LOG_FILE ".1");   /* overwrite previous backup */
+        if (g_logf) {
+            fclose(g_logf);
+            g_logf = NULL;
+        }
+        rename(LOG_FILE, LOG_FILE ".1"); /* overwrite previous backup */
         g_logf = fopen(LOG_FILE, "a");
     }
 }
@@ -51,5 +54,8 @@ void log_msg(const char *fmt, ...) {
         fflush(g_logf);
     }
 
-    if (++g_count >= 50) { g_count = 0; rotate_if_needed(); }
+    if (++g_count >= 50) {
+        g_count = 0;
+        rotate_if_needed();
+    }
 }

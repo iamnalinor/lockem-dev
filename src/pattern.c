@@ -1,10 +1,10 @@
 #include "pattern.h"
 #include <string.h>
 
-#define RESET_MS 4000   /* drop a partial match after this idle gap */
+#define RESET_MS 4000 /* drop a partial match after this idle gap */
 
 static void push_exp(matcher_t *m, int key, int dir, int dur) {
-    if (m->nexp >= (int)(sizeof(m->exp)/sizeof(m->exp[0]))) return;
+    if (m->nexp >= (int)(sizeof(m->exp) / sizeof(m->exp[0]))) return;
     m->exp[m->nexp].key = key;
     m->exp[m->nexp].dir = dir;
     m->exp[m->nexp].dur = dur;
@@ -17,10 +17,16 @@ void matcher_init(matcher_t *m, const pattern_t *p, int hold_ms) {
     for (int i = 0; i < p->n; i++) {
         int k = p->toks[i].key;
         switch (p->toks[i].type) {
-            case TOK_CLICK:   push_exp(m, k, 1, DUR_NONE); push_exp(m, k, 0, DUR_LT); break;
-            case TOK_HOLD:    push_exp(m, k, 1, DUR_NONE); push_exp(m, k, 0, DUR_GE); break;
-            case TOK_PRESS:   push_exp(m, k, 1, DUR_NONE); break;
-            case TOK_UNPRESS: push_exp(m, k, 0, DUR_NONE); break;
+        case TOK_CLICK:
+            push_exp(m, k, 1, DUR_NONE);
+            push_exp(m, k, 0, DUR_LT);
+            break;
+        case TOK_HOLD:
+            push_exp(m, k, 1, DUR_NONE);
+            push_exp(m, k, 0, DUR_GE);
+            break;
+        case TOK_PRESS: push_exp(m, k, 1, DUR_NONE); break;
+        case TOK_UNPRESS: push_exp(m, k, 0, DUR_NONE); break;
         }
     }
     m->idx = 0;
@@ -46,7 +52,10 @@ int matcher_feed(matcher_t *m, int key, int dir, long t) {
     if (exp_matches(m, m->idx, key, dir, t)) {
         m->idx++;
         m->last_match = t;
-        if (m->idx >= m->nexp) { m->idx = 0; return 1; }
+        if (m->idx >= m->nexp) {
+            m->idx = 0;
+            return 1;
+        }
         return 0;
     }
 
@@ -55,7 +64,10 @@ int matcher_feed(matcher_t *m, int key, int dir, long t) {
     if (exp_matches(m, 0, key, dir, t)) {
         m->idx = 1;
         m->last_match = t;
-        if (m->idx >= m->nexp) { m->idx = 0; return 1; }
+        if (m->idx >= m->nexp) {
+            m->idx = 0;
+            return 1;
+        }
     }
     return 0;
 }
@@ -67,7 +79,7 @@ int pattern_record_normalize(const rawev_t *ev, int n, int hold_ms, pattern_t *o
     if (hold_ms <= 0) hold_ms = 500;
 
     long last_down[KEYSPACE];
-    int  wrapper_open[KEYSPACE];
+    int wrapper_open[KEYSPACE];
     memset(last_down, 0, sizeof(last_down));
     memset(wrapper_open, 0, sizeof(wrapper_open));
 
@@ -79,12 +91,18 @@ int pattern_record_normalize(const rawev_t *ev, int n, int hold_ms, pattern_t *o
             /* find this down's matching up */
             int j = -1;
             for (int k = i + 1; k < n; k++) {
-                if (ev[k].key == K && ev[k].dir == 0) { j = k; break; }
+                if (ev[k].key == K && ev[k].dir == 0) {
+                    j = k;
+                    break;
+                }
             }
             int wrapper = 0;
             if (j >= 0) {
                 for (int k = i + 1; k < j; k++) {
-                    if (ev[k].key != K) { wrapper = 1; break; }
+                    if (ev[k].key != K) {
+                        wrapper = 1;
+                        break;
+                    }
                 }
             }
             if (wrapper) {

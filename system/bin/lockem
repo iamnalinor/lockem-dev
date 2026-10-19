@@ -15,15 +15,24 @@ do_unlock() {
   while IFS= read -r p; do
     [ -z "$p" ] && continue
     case "$p" in \#*) continue ;; esac
-    pm unhide "$p" >/dev/null 2>&1
-    pm enable "$p" >/dev/null 2>&1
-    pm enable --user 0 "$p" >/dev/null 2>&1
+    # reject anything but [A-Za-z0-9._] (junk / shell-injection guard)
+    case "$p" in *[!A-Za-z0-9._]*) echo "lockem: skip invalid pkg: $p"; continue ;; esac
+    # </dev/null is load-bearing: pm/cmd run app_process, which otherwise swallows
+    # this loop's stdin (packages.list) and the unhide/enable silently no-op.
+    pm unhide "$p" </dev/null >/dev/null 2>&1
+    pm enable "$p" </dev/null >/dev/null 2>&1
+    pm enable --user 0 "$p" </dev/null >/dev/null 2>&1
     echo "unlocked: $p"
   done < "$PKG"
   if [ -f "$LDIR/state" ]; then
-    . "$LDIR/state" 2>/dev/null
+    # parse (don't source) — state is data, not code
+    devopts_prev=$(grep -E '^devopts_prev=' "$LDIR/state" 2>/dev/null | head -n1 | cut -d= -f2-)
     if [ -n "$devopts_prev" ]; then
-      settings put global development_settings_enabled "$devopts_prev" >/dev/null 2>&1
+      if [ "$devopts_prev" = "null" ]; then
+        settings delete global development_settings_enabled </dev/null >/dev/null 2>&1
+      else
+        settings put global development_settings_enabled "$devopts_prev" </dev/null >/dev/null 2>&1
+      fi
     fi
   fi
   echo "lockem: unlock complete"
@@ -41,7 +50,16 @@ case "$1" in
     if pgrep -f "$DAEMON" >/dev/null 2>&1; then echo "daemon: running"; else echo "daemon: NOT running"; fi
     echo "packages:"; cat "$PKG" 2>/dev/null
     ;;
+  log)
+    n="${2:-200}"
+    case "$n" in *[!0-9]*) n=200 ;; esac
+    if [ -f "$LDIR/lockem.log" ]; then
+      tail -n "$n" "$LDIR/lockem.log" 2>/dev/null || cat "$LDIR/lockem.log"
+    else
+      echo "lockem: no log at $LDIR/lockem.log"
+    fi
+    ;;
   *)
-    echo "usage: lockem {lock|unlock|reload|status|record-lock-combo|record-unlock-combo}"
+    echo "usage: lockem {lock|unlock|reload|status|log [N]|record-lock-combo|record-unlock-combo}"
     exit 1 ;;
 esac

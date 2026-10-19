@@ -81,82 +81,98 @@ API android-37.x, Play Store (ps16k, 16 KB page size)** (про рут на нё
     **(НЕТ валидации имён пакетов `valid_pkg` — см. TODO, важно)**
   - `lockemd.c` — main: load config, open input, boot-escape, inotify на `ctl/`, основной poll-цикл
     (матч lock/unlock, обработка ctl, авто-lock housekeeping), запись комбо (`do_record`).
-  - `jni/Android.mk` — модуль `lockemd`, `-llog`, 16KB page alignment.
-- `.gitignore`, `LICENSE` (MIT, iamnalinor 2026).
+    В `actions.c` теперь есть `valid_pkg()` (`[A-Za-z0-9._]`) — применяется в `lock_one`/`unlock_one`.
+  - `jni/Android.mk` + **`jni/Application.mk`** — `APP_ABI := arm64-v8a x86_64`, `android-26`,
+    `APP_STL := none`, 16KB page alignment.
+- **`build.sh`** — ищет NDK (`$ANDROID_NDK_HOME` → `$ANDROID_SDK_ROOT/ndk/<highest>` → PATH),
+  зовёт `ndk-build` (поддержка `.cmd` на Windows), копирует в `bin/lockemd-arm64`/`-x86_64`.
+- **`pack.sh`** — собирает `dist/lockem.zip` (+`.sha256`) из бинарей+скриптов+`system/`+`webroot/`.
+  Формат — установка через менеджер (без META-INF; см. ниже про flashable).
+- **`system/bin/lockem`** — добавлены: валидация имён пакетов в `unlock` (`case` с запретом спецсимволов),
+  подкоманда `log [N]` (`tail`).
+- **`service.sh`** — переписан: kill-switch `/data/adb/lockem/disable` (проверяется на boot и между
+  рестартами); супервайзер с capped backoff (2→60с) и лимитом 8 быстрых падений → сдаётся; всё в фоне.
+- **`tests/`** — host unit-тесты: `test.h` (мини assert-раннер), `test_pattern.c` (66 проверок:
+  keymap, parse/to_string round-trip incl. press/unpress, матчер click/hold/reset/parallel/empty,
+  normalize clicks/hold/parallel, normalize→match), `run_tests.sh` (gcc +ASan/UBSan).
+- **`.clang-format`** — стиль C (LLVM-base, 4 пробела, 100 кол, pointer-right, SortIncludes:false).
+- **`webroot/`** — `index.html`/`app.js`/`style.css`: список `pm list packages -3` + чекбоксы,
+  запись двух комбо (флаг `ctl/record_*` → поллинг `record_result`), ручной конструктор рецепта,
+  опции, предупреждения (power+vol-down, dev-opts). Мост `sh()` с автодетектом `ksu.exec`. Пишет
+  config/packages.list через `base64 -d` (без проблем с экранированием), затем `ctl/reload`.
+- **`.github/workflows/ci.yml`** — jobs `lint` (shellcheck+cppcheck+clang-format), `test` (host-тесты),
+  `build` (`nttld/setup-ndk@v1` r26d → `build.sh` → `pack.sh` → upload-artifact),
+  `release` (на тег `v*`, `attest-build-provenance@v2` + `gh release create` с zip+sha256).
+- `.gitignore`, `LICENSE` (MIT, iamnalinor 2026), `README.md`, `docs/RISKS.md`, `docs/TESTING.md`.
 
-### НЕ создано / не доделано (точный список)
-- **`src/jni/Application.mk`** — ОТСУТСТВУЕТ, но на него ссылается сборка. Нужен:
-  `APP_ABI := arm64-v8a x86_64`, `APP_PLATFORM := android-26`, `APP_STL := none`,
-  `APP_LDFLAGS += -Wl,-z,max-page-size=16384`.
-- **`build.sh`** — ОТСУТСТВУЕТ. Должен звать `ndk-build` (на Windows `ndk-build.cmd`) с
-  `NDK_PROJECT_PATH=src`, `NDK_APPLICATION_MK=src/jni/Application.mk`, затем копировать
-  `src/libs/arm64-v8a/lockemd`→`bin/lockemd-arm64` и `src/libs/x86_64/lockemd`→`bin/lockemd-x86_64`.
-- **Валидация пакетов `valid_pkg()` в `actions.c`** — добавить: разрешать только `[A-Za-z0-9._]`,
-  иначе пропускать пакет (защита от инъекций в `system()` и от мусора). Применить в `lock_one`/`unlock_one`.
-  Аналогично в shell `lockem unlock` — отфильтровать имена (`case` с запретом спецсимволов).
-- **`service.sh`: супервайзер + kill-switch** — переписать: выход если есть `/data/adb/lockem/disable`;
-  перезапуск демона с backoff и лимитом попыток (чтобы крэш не крутился и не ел CPU); всё в фоне,
-  не блокируя boot.
-- **`lockem log`** — подкоманда CLI: `tail -n 200` лог-файла (fallback `cat`).
-- **Host unit-тесты** (`tests/`): `pattern.c` и `config.c` компилятся на Linux-хосте (config.c тянет
-  `<linux/input.h>` для KEY_*). Покрыть: `pattern_parse`/`pattern_to_string` round-trip; матчер
-  (срабатывание в нужной точке, click vs hold по таймингу, reset); `pattern_record_normalize`
-  (простая последовательность кликов; параллельный кейс press/click/unpress). Простой assert-раннер,
-  собирать gcc + `-fsanitize=address,undefined`.
-- **Линтеры**: `.clang-format` (стиль C), прогон `clang-format --dry-run --Werror`, `cppcheck`
-  (`--enable=warning,portability` и т.п.), `shellcheck` по всем `.sh` и `system/bin/lockem`.
-- **WebUI** `webroot/index.html`, `app.js`, `style.css` — список пакетов (из `pm list packages -3`),
-  запись двух комбо (кнопка → ставит флаг `ctl/record_lock|record_unlock` → поллит `record_result`),
-  ручной конструктор рецепта (grab-free), чекбоксы опций, предупреждения про `power+vol-down` (скриншот)
-  и про «disable Dev Options». Мост `exec()` с автодетектом `ksu.exec`/`kernelsu`/MMRL. Пишет
-  `/data/adb/lockem/config` и `packages.list`, затем `ctl/reload`.
-- **GitHub Actions** `.github/workflows/ci.yml` — jobs:
-  - `lint`: shellcheck + cppcheck + clang-format-check.
-  - `test`: собрать и прогнать host unit-тесты (gcc +ASan/UBSan).
-  - `build`: `ndk-build` arm64-v8a + x86_64, собрать zip модуля (разложить `bin/lockemd-*`, скрипты,
-    `system/`, `webroot/`, `module.prop` и т.д.) в `dist/lockem.zip`.
-  - `release` (на тег `v*`): нужен `build`; **attestation** через `actions/attest-build-provenance@v2`
-    (`permissions: id-token: write, attestations: write, contents: write`) на артефакт zip; затем
-    `gh release create` с zip. Можно добавить checksums.
-- **Docs**: `README.md` (обзор, установка, использование, краткие риски, ссылки на docs),
-  `docs/RISKS.md` (полная модель угроз + риски надёжности + ВСЕ способы анлока/восстановления),
-  `docs/TESTING.md` (гайд: поднять эмулятор максимально близко к Pixel 9a/A16, рутовать rootAVD,
-  что VM покрывает и что нет).
-- **Упаковка zip** — скрипт/Make-таргет для сборки устанавливаемого zip (может жить в build.sh или CI).
+### Проверено в облачном окружении (без устройства/NDK)
+- **Host-компиляция** всех `src/*.c` с `-D_GNU_SOURCE -Wall -Wextra`: чисто, без ворнингов, линкуется.
+  (На хосте нужны `-D_GNU_SOURCE`/`-std=gnu11` — glibc прячет `strtok_r`/`clock_gettime`/`O_CLOEXEC`/
+  `popen`/`strdup`/`usleep` под strict c11; bionic/NDK их открывает сам, так что для NDK это не проблема.
+  `run_tests.sh` уже ставит `-D_GNU_SOURCE`.)
+- **Unit-тесты**: `PASSED: 66 checks` (pattern/config) + `PASSED: 32 checks` (pkgname) под ASan/UBSan.
+- **Линтеры**: `clang-format --dry-run --Werror`, `cppcheck --enable=warning,portability`,
+  `shellcheck` (sh+bash) — всё чисто.
+- **`pack.sh`** проверен на заглушках-бинарях: раскладка zip корректна.
+
+### Code-review (superpowers, пройдено) — что поправлено
+Прогнан `superpowers:requesting-code-review` по финальному диффу. Critical — нет. Применено:
+- **Валидация пакетов вынесена** в `src/pkgname.c`/`.h` (`pkg_valid`/`pkg_blocked`) — чтобы её можно
+  было юнит-тестировать без `system()`. `actions.c` и `Android.mk` обновлены; добавлен
+  `tests/test_pkgname.c` (32 проверки: отклонение `;`/пробел/`$()`/backtick/`|`/`&`/`>`/newline/кавычки/
+  слэш/дефис/не-ASCII/пусто; blocklist exact-match).
+- **devopts restore на recovery-пути**: `system/bin/lockem` и `uninstall.sh` раньше писали литерал
+  `null` вместо удаления ключа при изначально unset. Теперь `null` → `settings delete` (как в
+  `actions.c:restore_devopts`).
+- **state читается парсингом** (`grep/cut`), а не `. source` — данные, не код (убраны и SC1091-директивы).
+- **WebUI пишет атомарно** (`writeFile` → `.tmp` + `mv -f`) — обрезанный `packages.list` не «потеряет»
+  пакеты при unlock.
+- `module.prop author=iamnalinor` (был `lockem`).
+
+Отложенные minor (не блокеры, при желании добить): CI-экшены пиннить по commit-SHA (не только мажор-тег);
+матчер по `ev.time` вместо времени чтения (edge при буфере событий); тест `config_load` (FS-парсинг);
+атомарность `config_write_kv` в демоне; `dumpsys power` polling раз в 5с при autolock (выкл. по умолч.).
+
+### Осталось (нужно устройство/NDK/CI — я к этому доступа не имел)
+- **Реальная сборка демона** `ndk-build` (NDK в облаке нет) — собрать `build.sh` локально/в CI.
+  Host-компиляция прошла чисто, так что C-ошибок быть не должно, но подтвердить на NDK.
+- **CI не запускался** (у пользователя кончились лимиты). Воркфлоу написан, синтаксис YAML валиден;
+  прогнать когда появятся лимиты. Если `nttld/setup-ndk` не устроит — заменить на свой NDK-setup.
+- **Track A (эмулятор)** и **Track B (Pixel 9a)** — см. `docs/TESTING.md`. Главное для телефона:
+  собрать реальные `avc: denied` и довести `sepolicy.rule`; проверить `pm hide` в Settings→Apps на A16,
+  реальные вибро/lockdown/recents/Private Space, `strict_disable` из root, тайминг boot-escape.
+- **flashable-zip (META-INF)** — сейчас zip рассчитан на установку через менеджер-апп (Magisk/KernelSU/
+  APatch ставят модуль-zip напрямую). Если нужен flash из кастом-рекавери — добавить
+  `META-INF/com/google/android/update-binary`+`updater-script` (Magisk-version-specific, не делал).
+- **superpowers-ревью** (пользователь просил в исходном плане) — опционально прогнать `code-review`/
+  `superpowers:requesting-code-review` по финальному диффу.
 
 ---
 
-## 4. Порядок доделки (рекомендуемый)
+## 4. Статус доделки
 
-1. Дописать `src/jni/Application.mk` и `build.sh` → собрать локально обе ABI, убедиться что компилится
-   (это вскроет возможные ошибки C). Команда проверки см. §5.
-2. Добавить `valid_pkg()` в `actions.c` + валидацию в shell `unlock`. Супервайзер+kill-switch в
-   `service.sh`. `lockem log`.
-3. Host unit-тесты + локальный прогон (gcc +ASan). Починить что всплывёт.
-4. Линтер-конфиги, прогнать локально (clang-format/cppcheck/shellcheck).
-5. WebUI.
-6. CI workflow (lint+test+build+release+attestation).
-7. README + docs/RISKS.md + docs/TESTING.md.
-8. Собрать zip, поставить в эмулятор (после рута), смоук-прогон (см. §6).
-9. **superpowers-ревью** всего (пользователь просил): через skill `superpowers:requesting-code-review`
-   или `code-review`. Если недоступен как плагин — вытащить сурсы скилла с GitHub (репо Superpowers) и
-   следовать им.
+Шаги 1–7 исходного плана выполнены и проверены на хосте (см. выше). Остаётся то, что требует
+устройства/NDK/CI (см. «Осталось»): реальная NDK-сборка, прогон CI, смоук на эмуляторе/телефоне,
+доводка sepolicy, опц. flashable-zip и superpowers-ревью.
 
 ---
 
 ## 5. Сборка
 
 NDK ставится с Android Studio (в нём есть `ndk-build`, на Windows — `ndk-build.cmd`).
-Локально, после создания Application.mk/build.sh, из корня репозитория:
+Локально из корня репозитория:
 ```bash
 # укажи путь к своему NDK (внутри Android SDK, каталог ndk/<version>):
 export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/<version>"
-bash build.sh
+bash build.sh    # -> bin/lockemd-arm64, bin/lockemd-x86_64
+bash pack.sh     # -> dist/lockem.zip (+ .sha256)
 ```
-Ожидаемо: `bin/lockemd-arm64` и `bin/lockemd-x86_64`. Для эмулятора нужен **x86_64**; для телефона arm64.
-ABI эмулятора — x86_64, образ 16KB-page (ps16k) → флаг `-Wl,-z,max-page-size=16384` обязателен (уже в mk).
+`build.sh` сам найдёт NDK (`$ANDROID_NDK_HOME` → `$ANDROID_SDK_ROOT/ndk/<highest>` → PATH).
+Для эмулятора нужен **x86_64**; для телефона arm64. ABI эмулятора — x86_64, образ 16KB-page (ps16k)
+→ флаг `-Wl,-z,max-page-size=16384` обязателен (уже в Application.mk).
 
-Host-тесты (Linux/CI): `gcc -I src -fsanitize=address,undefined tests/test_pattern.c src/pattern.c src/config.c -o tests/run && tests/run`.
+Host-тесты (Linux/CI, не нужны ни устройство, ни NDK): `bash tests/run_tests.sh`
+(gcc `-D_GNU_SOURCE` +ASan/UBSan; собирает `tests/test_pattern.c` + `src/pattern.c` + `src/config.c`).
 
 ---
 

@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install linters
+        run: sudo apt-get update && sudo apt-get install -y cppcheck shellcheck clang-format
+      - name: clang-format
+        run: clang-format --dry-run --Werror src/*.c src/*.h tests/*.c tests/*.h
+      - name: cppcheck
+        run: >
+          cppcheck --enable=warning,portability --std=c11 --error-exitcode=1
+          --inline-suppr --suppress=missingIncludeSystem -I src src/*.c
+      - name: shellcheck (sh)
+        run: shellcheck -s sh customize.sh service.sh uninstall.sh action.sh system/bin/lockem
+      - name: shellcheck (bash)
+        run: shellcheck -s bash build.sh pack.sh tests/run_tests.sh
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host unit tests (ASan + UBSan)
+        run: bash tests/run_tests.sh
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+          add-to-path: true
+      - name: Build daemon (arm64-v8a + x86_64)
+        run: bash build.sh
+      - name: Package module zip
+        run: bash pack.sh
+      - name: Upload module artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockem-module
+          path: |
+            dist/lockem.zip
+            dist/lockem.zip.sha256
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the release
+      id-token: write        # attestation OIDC
+      attestations: write    # write provenance
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download module artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lockem-module
+          path: dist
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/lockem.zip
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}"
+          dist/lockem.zip dist/lockem.zip.sha256
+          --repo "${GITHUB_REPOSITORY}"
+          --title "lockem ${GITHUB_REF_NAME}"
+          --generate-notes

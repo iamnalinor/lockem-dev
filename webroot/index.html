@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>lockem</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>lockem</h1>
+    <span id="daemon" class="badge">daemon: …</span>
+  </header>
+
+  <p class="note" id="bridge-warn" hidden>
+    No root WebUI bridge detected (<code>ksu.exec</code>). Open this page from your
+    root manager's WebUI (KsuWebUI / KernelSU / MMRL), not a plain browser.
+  </p>
+
+  <section>
+    <h2>Apps to hide</h2>
+    <p class="hint">Third-party apps on this device. Checked apps are hidden on the
+      lock combo and restored on the unlock combo.</p>
+    <div class="row">
+      <button id="refresh-pkgs" type="button">Refresh list</button>
+      <input id="pkg-filter" type="search" placeholder="filter…" autocomplete="off">
+    </div>
+    <div id="pkglist" class="pkglist">loading…</div>
+  </section>
+
+  <section>
+    <h2>Combos</h2>
+    <p class="hint">A combo is an ordered recipe of button actions. Record it by
+      pressing the buttons, or build it by hand below (no button presses needed).</p>
+
+    <div class="combo" data-kind="lock">
+      <h3>Lock combo <small>(hides apps)</small></h3>
+      <div class="recipe" id="recipe-lock">—</div>
+      <div class="row">
+        <button type="button" class="rec" data-kind="lock">Record (press buttons)</button>
+        <span class="rec-status" id="recstatus-lock"></span>
+      </div>
+      <details class="builder">
+        <summary>Build by hand</summary>
+        <div class="row">
+          <select class="b-type">
+            <option value="click">click</option>
+            <option value="hold">hold</option>
+            <option value="press">press (hold down…)</option>
+            <option value="unpress">unpress (…release)</option>
+          </select>
+          <select class="b-key">
+            <option value="KEY_VOLUMEUP">Volume Up</option>
+            <option value="KEY_VOLUMEDOWN">Volume Down</option>
+            <option value="KEY_POWER">Power</option>
+          </select>
+          <button type="button" class="b-add">Add</button>
+          <button type="button" class="b-clear">Clear</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="combo" data-kind="unlock">
+      <h3>Unlock combo <small>(restores apps)</small></h3>
+      <div class="recipe" id="recipe-unlock">—</div>
+      <div class="row">
+        <button type="button" class="rec" data-kind="unlock">Record (press buttons)</button>
+        <span class="rec-status" id="recstatus-unlock"></span>
+      </div>
+      <details class="builder">
+        <summary>Build by hand</summary>
+        <div class="row">
+          <select class="b-type">
+            <option value="click">click</option>
+            <option value="hold">hold</option>
+            <option value="press">press (hold down…)</option>
+            <option value="unpress">unpress (…release)</option>
+          </select>
+          <select class="b-key">
+            <option value="KEY_VOLUMEUP">Volume Up</option>
+            <option value="KEY_VOLUMEDOWN">Volume Down</option>
+            <option value="KEY_POWER">Power</option>
+          </select>
+          <button type="button" class="b-add">Add</button>
+          <button type="button" class="b-clear">Clear</button>
+        </div>
+      </details>
+    </div>
+
+    <p class="warn">⚠️ Avoid <b>Power + Volume-Down</b> — Android takes a screenshot
+      on that combo, which lands in your gallery and defeats the point. Long-press
+      Power opens the power menu and 5× Power triggers SOS; those are harmless noise
+      but may be surprising.</p>
+  </section>
+
+  <section>
+    <h2>Options</h2>
+    <label><input type="checkbox" id="opt_vibrate"> Vibrate on lock / unlock</label>
+    <label><input type="checkbox" id="opt_private_space"> Lock Private Space on lock
+      <small>(am stop-user)</small></label>
+    <label><input type="checkbox" id="opt_lockdown"> Lockdown / lock screen on lock
+      <small>(best-effort)</small></label>
+    <label><input type="checkbox" id="opt_disable_devopts"> Hide Developer Options on lock
+      <small>(adb stays on — recovery path preserved)</small></label>
+    <label><input type="checkbox" id="opt_autolock_screenoff"> Auto-lock when screen turns off</label>
+    <label><input type="checkbox" id="opt_autolock_timeout"> Auto-lock after inactivity</label>
+    <label class="inline">Inactivity timeout (min):
+      <input type="number" id="autolock_timeout_min" min="1" max="1440" value="5"></label>
+    <label class="inline">Hold threshold (ms):
+      <input type="number" id="hold_ms" min="100" max="3000" step="50" value="500"></label>
+
+    <details class="builder">
+      <summary>Advanced</summary>
+      <label><input type="checkbox" id="strict_disable"> Strict disable
+        <small>(pm disable instead of disable-user — riskier)</small></label>
+      <label class="inline">Boot-escape key:
+        <select id="escape_key">
+          <option value="KEY_VOLUMEUP">Volume Up</option>
+          <option value="KEY_VOLUMEDOWN">Volume Down</option>
+          <option value="KEY_POWER">Power</option>
+        </select></label>
+      <label class="inline">Boot-escape window (sec):
+        <input type="number" id="escape_window_sec" min="2" max="30" value="6"></label>
+      <p class="hint">Hold the boot-escape key while the daemon starts (just after you
+        unlock the lock screen on boot) to unlock everything — recovery if you forget
+        the combo.</p>
+    </details>
+  </section>
+
+  <div class="actions">
+    <button id="save" type="button" class="primary">Save &amp; apply</button>
+    <span id="savestatus"></span>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

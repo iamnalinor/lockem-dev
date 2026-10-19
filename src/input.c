@@ -34,9 +34,8 @@ static int dev_has_our_keys(int fd) {
     memset(keybit, 0, sizeof(keybit));
     if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybit)), keybit) < 0) return 0;
 
-    return test_bit(KEY_POWER, keybit)
-        || test_bit(KEY_VOLUMEUP, keybit)
-        || test_bit(KEY_VOLUMEDOWN, keybit);
+    return test_bit(KEY_POWER, keybit) || test_bit(KEY_VOLUMEUP, keybit) ||
+           test_bit(KEY_VOLUMEDOWN, keybit);
 }
 
 int input_open(input_t *in) {
