@@ -1,7 +1,11 @@
 # lockem — testing guide
 
-Two tracks: a rooted emulator (functional logic) and the real Pixel 9a (things the VM
-can't be trusted for). Plus host unit tests that need neither.
+Two tracks: a rooted emulator (functional logic) and a real rooted device (things the
+VM can't be trusted for). Plus host unit tests that need neither.
+
+> lockem is meant to run on any rooted Android device. So far it has only been tested
+> on a **Pixel 9a / Android 16**, which is the reference device named under Track B —
+> substitute your own device there.
 
 ## 0. Host unit tests (no device, no NDK)
 
@@ -33,14 +37,39 @@ An x86_64 image close to the target: API 36/37, 16 KB page size (the `ps16k` var
 
 ### Setup
 
-1. Create the AVD from a Google APIs x86_64 image.
-2. Root it with rootAVD (follow its README; it installs Magisk into the ramdisk).
-3. Build the x86_64 daemon and package:
-   ```bash
-   export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/<version>"
-   bash build.sh && bash pack.sh
-   ```
-4. Install `dist/lockem.zip` via the root manager, reboot.
+**1. Create a Google APIs x86_64 AVD** (needs the Android SDK cmdline-tools on PATH).
+Pick an image close to the target; adjust the API level to taste:
+```bash
+sdkmanager "system-images;android-36;google_apis;x86_64"
+avdmanager create avd -n lockem-test -k "system-images;android-36;google_apis;x86_64"
+emulator -avd lockem-test        # first boot, so rootAVD can see the image
+```
+
+**2. Root it with rootAVD** (patches the AVD ramdisk with Magisk) —
+<https://github.com/newbit1/rootAVD>:
+```bash
+git clone https://github.com/newbit1/rootAVD.git && cd rootAVD
+./rootAVD.sh ListAllAVDs                                   # find your ramdisk path
+./rootAVD.sh system-images/android-36/google_apis/x86_64/ramdisk.img
+# it reboots the AVD; finish Magisk setup in the Magisk app (Install → Direct)
+```
+(On Windows use `rootAVD.bat` instead of `./rootAVD.sh`.)
+
+**3. Build the x86_64 daemon and package** (on your build host, needs an NDK r26+):
+```bash
+export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/<version>"   # or set ANDROID_SDK_ROOT
+bash build.sh && bash pack.sh                               # -> dist/lockem.zip
+```
+
+**4. Install the module and reboot.** Push the zip, then install it through the root
+manager app (Magisk/KernelSU/APatch → Modules → Install from storage), and reboot:
+```bash
+adb push dist/lockem.zip /sdcard/Download/
+# install dist/lockem.zip from the manager app UI, then:
+adb reboot
+```
+After reboot, verify from a root shell: `adb shell su -c 'lockem status'` and
+`adb shell su -c 'lockem log'`.
 
 ### What the VM validates (trust these)
 
@@ -70,9 +99,10 @@ Settings → Apps → See all on A16.
 8. Fail-safe: `kill` the daemon while locked → buttons keep working (no grab was held);
    apps recoverable via `pm enable` / reinstall.
 
-## 3. Real Pixel 9a (Track B) — enforcing hardware
+## 3. Real device (Track B) — enforcing hardware
 
-Repeat the smoke run, then close what the VM couldn't:
+Reference device tested: **Pixel 9a / Android 16** — substitute your own. Repeat the
+smoke run, then close what the VM couldn't:
 
 - **SELinux:** collect real denials — `dmesg | grep 'avc: denied'` — for reading
   `/dev/input/*` (and the `EVIOCGRAB` ioctl during recording). Extend `sepolicy.rule`

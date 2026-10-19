@@ -79,7 +79,8 @@ is plaintext and the bootloader is open.
    root-capable environment (userdebug GSI / recovery with adb-root) via
    `fastboot boot <img>` — **not** the same patched `init_boot` (that reproduces the
    same state) — and read the plaintext combo, run `lockem unlock`, or remove the module.
-   The exact image/method for Pixel 9a is a device-specific TODO.
+   The exact image/method is device-specific (worked out per device; Pixel 9a was the
+   reference device but this path has not been exercised there yet).
 
 ## 5. Hiding the root manager
 

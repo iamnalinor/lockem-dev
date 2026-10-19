@@ -1,9 +1,17 @@
 # lockem
 
 A Magisk / KernelSU / APatch module that **reversibly hides selected apps on a
-hardware-button combo**, and restores them on a reverse combo. Built for a personal
-Pixel 9a (Android 16); the daemon is portable C and uses only stock `pm` / `cmd` /
-`am`, so it works across root managers.
+hardware-button combo**, and restores them on a reverse combo. The daemon is
+portable C that uses only stock `pm` / `cmd` / `am` and reads evdev generically, so
+it is meant to run on any rooted Android device, across root managers.
+
+> **Compatibility.** lockem targets rooted Android generally (arm64 and x86_64).
+> So far it has only been **tested on a Pixel 9a running Android 16** — other
+> devices and Android versions *should* work but are unverified. A few behaviors are
+> inherently device-dependent (see [docs/RISKS.md](docs/RISKS.md) §3 and
+> [docs/TESTING.md](docs/TESTING.md)): biometric lockdown, recents-card removal,
+> Private Space, vibration path, and which keys the firmware grabs on early boot.
+> Reports and PRs from other devices are welcome.
 
 > **lockem is concealment, not encryption.** It hides apps from a glance or a
 > grabbed-unlocked phone — not from forensics or a knowledgeable adversary with your
