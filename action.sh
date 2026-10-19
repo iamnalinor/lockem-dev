@@ -7,9 +7,6 @@
 # (MMRL). If neither is installed it fetches KsuWebUI Standalone, falling back to
 # opening its releases page in a browser.
 #
-# MODDIR is exported by the manager; derive it defensively if it is not.
-MODDIR=${MODDIR:-${0%/*}}
-
 MODID=lockem
 KSUWEBUI=io.github.a13e300.ksuwebui
 WEBUIX=com.dergoogler.mmrl.wx
@@ -36,10 +33,16 @@ if pm path "$WEBUIX" >/dev/null 2>&1; then
   exit 0
 fi
 
-# None installed — fetch KsuWebUI Standalone (best-effort; needs network + TLS).
+# None installed — fetch KsuWebUI Standalone (best-effort). Accept only official
+# release assets: the URL is anchored to the repo's releases/download host, so a
+# stray link elsewhere in the GitHub API JSON can't be picked. Stage in
+# /data/local/tmp — the package installer runs in system_server and cannot read
+# /data/adb, so an APK under the module dir would fail to install.
 echo "- no WebUI app installed; fetching KsuWebUI Standalone..."
-APK="$MODDIR/ksuwebui.apk"
-URL=$(busybox wget -qO- "$API" 2>/dev/null | grep -o 'https://[^"]*\.apk' | head -n1)
+APK=/data/local/tmp/lockem-ksuwebui.apk
+URL=$(busybox wget -qO- "$API" 2>/dev/null \
+  | grep -oE 'https://github\.com/KOWX712/KsuWebUIStandalone/releases/download/[^"]+\.apk' \
+  | head -n1)
 ok=0
 if [ -n "$URL" ] && busybox wget -qO "$APK" "$URL" 2>/dev/null; then
   pm install -r "$APK" >/dev/null 2>&1 && ok=1
