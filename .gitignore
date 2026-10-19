@@ -4,6 +4,9 @@ src/libs/
 bin/lockemd
 bin/lockemd-arm64
 bin/lockemd-x86_64
+bin/labeldump.dex
+src/labeldump/classes/
+src/labeldump/dexout/
 *.o
 
 # host test binaries

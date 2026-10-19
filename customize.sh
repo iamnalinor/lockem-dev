@@ -31,6 +31,8 @@ chmod 0700 "$LDIR"
 set_perm "$MODPATH/bin/lockemd"       0 0 0755
 set_perm "$MODPATH/system/bin/lockem" 0 0 0755
 set_perm "$MODPATH/action.sh"         0 0 0755
+# optional app_process label/icon helper (ABI-independent dex); read-only is enough
+[ -f "$MODPATH/bin/labeldump.dex" ] && set_perm "$MODPATH/bin/labeldump.dex" 0 0 0644
 
 ui_print "- installed. Tap the module's Action button to open the WebUI"
 ui_print "  (installs KsuWebUI if no WebUI app is present), then reboot."

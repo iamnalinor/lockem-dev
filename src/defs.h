@@ -49,6 +49,12 @@ typedef struct {
     int escape_key;
     int escape_window_sec;
 
+    /* custom command (WebUI "Advanced"): run on lock/unlock, empty = none */
+    char lock_cmd[512];
+    char unlock_cmd[512];
+    int cmd_as_root; /* 0 = shell (uid 2000), 1 = root */
+    int cmd_before;  /* 1 = before built-in actions, 0 = after */
+
     pattern_t lock_pat;
     pattern_t unlock_pat;
 } config_t;
@@ -58,8 +64,9 @@ int key_from_name(const char *name);
 const char *key_name(int code);
 
 /* config.c */
-int config_load(config_t *c);                   /* returns 0 ok */
-int pattern_parse(const char *s, pattern_t *p); /* "click:KEY,hold:KEY" */
+int config_load(config_t *c);                                    /* returns 0 ok */
+void config_apply_kv(config_t *c, const char *k, const char *v); /* one key=value pair */
+int pattern_parse(const char *s, pattern_t *p);                  /* "click:KEY,hold:KEY" */
 int pattern_to_string(const pattern_t *p, char *out, size_t outsz);
 
 /* log (util.c) */

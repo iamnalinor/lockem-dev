@@ -84,25 +84,118 @@ static void write_rec_result(const char *id, const char *status, const char *kv_
     rename(REC_RESULT ".tmp", REC_RESULT);
 }
 
-/* action is "record_lock" or "record_unlock"; id is the WebUI request id (or NULL). */
+/* Called when the ctl inotify fd is readable during a record grab: drain the pending
+   events and return 1 iff a cancel request (action=cancel, matching our id when both
+   are present) has been written by the WebUI's "Stop" button. */
+static int record_cancel_requested(int cfd, const char *id) {
+    char buf[4096];
+    ssize_t len = read(cfd, buf, sizeof(buf));
+    if (len <= 0) return 0;
+    int saw_request = 0;
+    for (char *p = buf; p < buf + len;) {
+        struct inotify_event *e = (struct inotify_event *)p;
+        if (e->len > 0 && !strcmp(e->name, "request")) saw_request = 1;
+        p += sizeof(struct inotify_event) + e->len;
+    }
+    if (!saw_request) return 0;
+
+    char path[300];
+    snprintf(path, sizeof(path), "%s/request", CTL_DIR);
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    char line[256], action[32] = "", rid[64] = "";
+    while (fgets(line, sizeof(line), f)) {
+        char *nl = strchr(line, '\n');
+        if (nl) *nl = 0;
+        if (!strncmp(line, "action=", 7))
+            strncpy(action, line + 7, sizeof(action) - 1);
+        else if (!strncmp(line, "id=", 3))
+            strncpy(rid, line + 3, sizeof(rid) - 1);
+    }
+    fclose(f);
+    if (strcmp(action, "cancel") != 0) return 0;
+    if (id && id[0] && rid[0] && strcmp(id, rid) != 0) return 0; /* different session */
+    return 1;
+}
+
+/* action is "record_lock" or "record_unlock"; id is the WebUI request id (or NULL).
+   Grabs input and captures a pattern, while also watching the ctl inotify fd so an
+   `action=cancel` request can abort the grab mid-recording (the WebUI "Stop" button). */
 static void do_record(input_t *in, const char *action, const char *id) {
     log_msg("record: start (%s) — grabbing input", action);
     input_grab(in, 1);
 
+    /* Private inotify fd for cancel detection, separate from the main loop's fd:
+       events consumed here never rob the main loop of lock_now/reload/record signals
+       that happen to arrive during the grab. */
+    int cfd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (cfd >= 0) inotify_add_watch(cfd, CTL_DIR, IN_MOVED_TO | IN_CLOSE_WRITE);
+
     rawev_t evs[MAX_REC_EVENTS];
-    int n = 0, key, dir;
+    int n = 0;
+    int cancelled = 0;
 
     /* wait up to 15s for the first press, then end after 1.5s of inactivity */
-    int r = input_next(in, &key, &dir, 15000);
-    while (r == 1 && n < MAX_REC_EVENTS) {
-        evs[n].key = key;
-        evs[n].dir = dir;
-        evs[n].t = now_ms();
-        n++;
-        r = input_next(in, &key, &dir, 1500);
+    long deadline = now_ms() + 15000;
+    struct pollfd pfd[MAX_INPUT_FDS + 1];
+
+    while (n < MAX_REC_EVENTS && !g_stop) {
+        int np = 0;
+        for (int i = 0; i < in->nfds; i++) {
+            pfd[np].fd = in->fds[i];
+            pfd[np].events = POLLIN;
+            pfd[np].revents = 0;
+            np++;
+        }
+        int ctl_idx = -1;
+        if (cfd >= 0) {
+            pfd[np].fd = cfd;
+            pfd[np].events = POLLIN;
+            pfd[np].revents = 0;
+            ctl_idx = np;
+            np++;
+        }
+
+        int to = (int)(deadline - now_ms());
+        if (to < 0) to = 0;
+        int r = poll(pfd, np, to);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if (r == 0) break; /* first-press or inactivity timeout */
+
+        if (ctl_idx >= 0 && (pfd[ctl_idx].revents & POLLIN)) {
+            if (record_cancel_requested(cfd, id)) {
+                cancelled = 1;
+                break;
+            }
+        }
+
+        int got = 0;
+        for (int i = 0; i < in->nfds; i++) {
+            if (!(pfd[i].revents & POLLIN)) continue;
+            int key, dir;
+            if (input_read_event(in->fds[i], &key, &dir)) {
+                evs[n].key = key;
+                evs[n].dir = dir;
+                evs[n].t = now_ms();
+                n++;
+                got = 1;
+                if (n >= MAX_REC_EVENTS) break;
+            }
+        }
+        if (got) deadline = now_ms() + 1500; /* reset inactivity window after each event */
     }
 
     input_grab(in, 0);
+    if (cfd >= 0) close(cfd);
+
+    if (cancelled) {
+        write_rec_result(id, "cancelled", NULL);
+        log_msg("record: cancelled (%s) -> kept previous pattern", action);
+        return;
+    }
 
     config_t tmp;
     config_load(&tmp);
@@ -163,7 +256,7 @@ static void handle_request(input_t *in, int *dirty) {
         do_record(in, action, id[0] ? id : NULL);
         *dirty = 1;
     }
-    /* reserved: action=cancel (real Stop) — not implemented yet */
+    /* action=cancel arriving outside a grab is a no-op (handled inline in do_record). */
 }
 
 /* ---- ctl handling ---- */

@@ -21,6 +21,12 @@ mkdir -p "$STAGE/bin" "$STAGE/system/bin" "$STAGE/webroot"
 cp module.prop customize.sh service.sh uninstall.sh sepolicy.rule default-config action.sh "$STAGE/"
 # daemon binaries (customize.sh renames the right one to lockemd on install)
 cp bin/lockemd-arm64 bin/lockemd-x86_64 "$STAGE/bin/"
+# optional ABI-independent app_process helper for app labels/icons (if built)
+if [ -f bin/labeldump.dex ]; then
+  cp bin/labeldump.dex "$STAGE/bin/"
+else
+  echo "- note: bin/labeldump.dex absent — WebUI will show package names (no labels/icons)"
+fi
 # CLI + WebUI
 cp system/bin/lockem "$STAGE/system/bin/"
 cp webroot/index.html webroot/app.js webroot/style.css "$STAGE/webroot/"

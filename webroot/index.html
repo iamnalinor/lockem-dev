@@ -87,18 +87,16 @@
     <div class="row">
       <button id="refresh-pkgs" type="button" class="iconbtn" aria-label="Refresh list"
         title="Refresh list">↻</button>
-      <input id="pkg-filter" type="search" placeholder="filter…" autocomplete="off">
+      <input id="pkg-filter" type="search" placeholder="Search…" autocomplete="off">
     </div>
-    <label class="sys-toggle"><input type="checkbox" id="show-system"> Show system apps
-      <small>(risky — hiding system apps can destabilize the device)</small></label>
-    <div id="pkglist" class="pkglist">loading…</div>
+    <label class="sys-toggle"><input type="checkbox" id="show-system"> Show system apps</label>
+    <div id="pkglist">loading…</div>
   </section>
 
   <section>
     <h2>Options</h2>
     <label><input type="checkbox" id="opt_vibrate"> Vibrate on lock / unlock</label>
-    <label><input type="checkbox" id="opt_private_space"> Lock Private Space on lock
-      <small>(am stop-user)</small></label>
+    <label id="row_private_space"><input type="checkbox" id="opt_private_space"> Lock Private Space on lock</label>
     <label><input type="checkbox" id="opt_lockdown"> Lockdown on lock
       <small>(blocks biometrics — next unlock needs PIN)</small></label>
     <label><input type="checkbox" id="opt_disable_devopts"> Hide Developer Options on lock
@@ -114,6 +112,28 @@
       <summary>Advanced</summary>
       <label><input type="checkbox" id="strict_disable"> Strict disable
         <small>(pm disable instead of disable-user — riskier)</small></label>
+
+      <h3>Custom command</h3>
+      <label>On lock <small>(optional shell command; runs as chosen below)</small>
+        <input type="text" id="lock_cmd" class="cmd-input" placeholder="e.g. input keyevent 26"
+          autocomplete="off" spellcheck="false"></label>
+      <label>On unlock <small>(optional)</small>
+        <input type="text" id="unlock_cmd" class="cmd-input" placeholder=""
+          autocomplete="off" spellcheck="false"></label>
+      <label class="inline">Run as:
+        <select id="cmd_user">
+          <option value="shell">shell (safer)</option>
+          <option value="root">root</option>
+        </select></label>
+      <label class="inline">When:
+        <select id="cmd_timing">
+          <option value="after">after built-in actions</option>
+          <option value="before">before built-in actions</option>
+        </select></label>
+      <p class="warn" id="cmd-root-warn" hidden>Running as <b>root</b> is powerful — a bad
+        command can brick the device or break boot. Prefer shell unless you know exactly
+        what the command does.</p>
+
       <label class="inline">Boot-escape key:
         <select id="escape_key">
           <option value="KEY_VOLUMEUP">Volume Up</option>

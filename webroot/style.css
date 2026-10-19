@@ -46,6 +46,7 @@ button {
   border-radius: 9px; padding: 9px 13px; font-size: 0.9rem; cursor: pointer;
 }
 button:active { opacity: .7; }
+button:disabled { opacity: .5; cursor: not-allowed; }
 button.primary { background: var(--accent); color: #fff; }
 button.rec[aria-pressed="true"] { background: var(--danger); color: #fff; }
 input, select {
@@ -63,11 +64,7 @@ label input[type="checkbox"] { margin-right: 6px; }
 }
 .badge.ok { color: var(--ok); border-color: var(--ok); }
 .badge.bad { color: var(--danger); border-color: var(--danger); }
-.pkglist {
-  max-height: 260px; overflow: auto; border: 1px solid var(--border);
-  border-radius: 8px; padding: 6px;
-}
-.pkglist label { margin: 2px 0; font-size: 0.88rem; word-break: break-all; }
+#pkglist { margin-top: 4px; }
 .combo { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
 .combo:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
 .recipe {
@@ -92,25 +89,31 @@ label input[type="checkbox"] { margin-right: 6px; }
 }
 code { font-family: ui-monospace, monospace; }
 
-/* app list rows (name + initial placeholder; labels/icons are a later feature) */
+/* app list: three blocks (Apps / Magisk-related / System apps), real icon + label */
 .sys-toggle { font-size: 0.85rem; }
 .iconbtn { font-size: 1.05rem; line-height: 1; padding: 8px 11px; }
-.pkglist label.pkg {
-  display: flex; align-items: center; gap: 8px; margin: 2px 0; padding: 4px;
-  font-size: 0.88rem; word-break: break-all; border-radius: 6px;
+.cmd-input { display: block; width: 100%; margin-top: 4px; }
+.pkg-block {
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin: 10px 0;
 }
-.pkglist label.pkg input[type="checkbox"] { margin: 0; flex: none; }
-.avatar {
-  flex: none; width: 26px; height: 26px; border-radius: 6px;
+.pkg-block-h { font-size: 0.9rem; font-weight: 600; margin: 2px 0; }
+.pkg-note { font-size: 0.78rem; color: var(--muted); margin: 0 0 6px; }
+.pkg-rows { max-height: 260px; overflow: auto; }
+.pkg {
+  display: flex; align-items: center; gap: 10px; margin: 1px 0; padding: 5px 4px;
+  font-size: 0.88rem; border-radius: 6px;
+}
+.pkg input[type="checkbox"] { margin: 0; flex: none; }
+.pkg-icon {
+  flex: none; width: 28px; height: 28px; border-radius: 6px; overflow: hidden;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--border); color: var(--fg); font-size: 0.8rem; font-weight: 600;
+  background: var(--border);
 }
-.pkg-name { flex: 1; min-width: 0; }
+.pkg-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pkg-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pkg-name { min-width: 0; word-break: break-word; }
+.pkg-sub { font-size: 0.74rem; color: var(--muted); word-break: break-all; }
 .pkg.sys .pkg-name { color: var(--muted); }
-.pkg-group {
-  font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
-  letter-spacing: .04em; margin: 10px 2px 4px;
-}
 #unsaved { color: var(--warn); font-size: 0.85rem; }
 .logview {
   max-height: 260px; overflow: auto; background: var(--bg);

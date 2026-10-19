@@ -6,8 +6,9 @@ portable C that uses only stock `pm` / `cmd` / `am` and reads evdev generically,
 it is meant to run on any rooted Android device, across root managers.
 
 > **Compatibility.** lockem targets rooted Android generally (arm64 and x86_64).
-> So far it has only been **tested on a Pixel 9a running Android 16** — other
-> devices and Android versions *should* work but are unverified. A few behaviors are
+> So far it has been **tested on a Pixel 9a running Android 16** (physical device) and
+> on a **rooted Android emulator (Google APIs, 16 KB pages)** for the functional logic —
+> other devices and Android versions *should* work but are unverified. A few behaviors are
 > inherently device-dependent (see [docs/RISKS.md](docs/RISKS.md) §3 and
 > [docs/TESTING.md](docs/TESTING.md)): biometric lockdown, recents-card removal,
 > Private Space, vibration path, and which keys the firmware grabs on early boot.
@@ -26,8 +27,9 @@ power/volume evdev stream **passively** and watches for two combos:
 
 - **lock combo** → for each selected package: `pm disable-user` (or strict
   `pm disable`), `pm hide`, `am force-stop` (the force-stop also clears the recents
-  card). Optional extras: vibrate, lock Private Space, lockdown/lock screen, hide
-  Developer Options.
+  card). Optional extras: vibrate, lock Private Space, lockdown (blocks biometrics),
+  hide Developer Options, and a **custom command** you supply (run as shell or root,
+  before or after the built-in actions).
 - **unlock combo** → `pm unhide` + `pm enable` for every selected package, and
   restores Developer Options.
 

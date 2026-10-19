@@ -90,6 +90,46 @@ static int parse_bool(const char *v) {
     return (v && (v[0] == '1'));
 }
 
+/* Apply one key=value pair to the config. Shared by config_load() and the unit tests;
+   unknown keys are ignored. The caller zeroes/defaults the config first. */
+void config_apply_kv(config_t *c, const char *k, const char *v) {
+    if (!strcmp(k, "strict_disable"))
+        c->strict_disable = parse_bool(v);
+    else if (!strcmp(k, "opt_vibrate"))
+        c->opt_vibrate = parse_bool(v);
+    else if (!strcmp(k, "opt_private_space"))
+        c->opt_private_space = parse_bool(v);
+    else if (!strcmp(k, "opt_lockdown"))
+        c->opt_lockdown = parse_bool(v);
+    else if (!strcmp(k, "opt_disable_devopts"))
+        c->opt_disable_devopts = parse_bool(v);
+    else if (!strcmp(k, "opt_autolock_screenoff"))
+        c->opt_autolock_screenoff = parse_bool(v);
+    else if (!strcmp(k, "opt_autolock_timeout"))
+        c->opt_autolock_timeout = parse_bool(v);
+    else if (!strcmp(k, "autolock_timeout_min"))
+        c->autolock_timeout_min = atoi(v);
+    else if (!strcmp(k, "hold_ms"))
+        c->hold_ms = atoi(v);
+    else if (!strcmp(k, "escape_window_sec"))
+        c->escape_window_sec = atoi(v);
+    else if (!strcmp(k, "escape_key")) {
+        int kc = key_from_name(v);
+        if (kc >= 0) c->escape_key = kc;
+    } else if (!strcmp(k, "lock_cmd")) {
+        strncpy(c->lock_cmd, v, sizeof(c->lock_cmd) - 1);
+    } else if (!strcmp(k, "unlock_cmd")) {
+        strncpy(c->unlock_cmd, v, sizeof(c->unlock_cmd) - 1);
+    } else if (!strcmp(k, "cmd_user")) {
+        c->cmd_as_root = !strcmp(v, "root"); /* default (shell) otherwise */
+    } else if (!strcmp(k, "cmd_timing")) {
+        c->cmd_before = !strcmp(v, "before"); /* default (after) otherwise */
+    } else if (!strcmp(k, "lock_pattern"))
+        pattern_parse(v, &c->lock_pat);
+    else if (!strcmp(k, "unlock_pattern"))
+        pattern_parse(v, &c->unlock_pat);
+}
+
 int config_load(config_t *c) {
     memset(c, 0, sizeof(*c));
     /* defaults */
@@ -110,33 +150,7 @@ int config_load(config_t *c) {
             *eq = 0;
             char *k = trim(l);
             char *v = trim(eq + 1);
-            if (!strcmp(k, "strict_disable"))
-                c->strict_disable = parse_bool(v);
-            else if (!strcmp(k, "opt_vibrate"))
-                c->opt_vibrate = parse_bool(v);
-            else if (!strcmp(k, "opt_private_space"))
-                c->opt_private_space = parse_bool(v);
-            else if (!strcmp(k, "opt_lockdown"))
-                c->opt_lockdown = parse_bool(v);
-            else if (!strcmp(k, "opt_disable_devopts"))
-                c->opt_disable_devopts = parse_bool(v);
-            else if (!strcmp(k, "opt_autolock_screenoff"))
-                c->opt_autolock_screenoff = parse_bool(v);
-            else if (!strcmp(k, "opt_autolock_timeout"))
-                c->opt_autolock_timeout = parse_bool(v);
-            else if (!strcmp(k, "autolock_timeout_min"))
-                c->autolock_timeout_min = atoi(v);
-            else if (!strcmp(k, "hold_ms"))
-                c->hold_ms = atoi(v);
-            else if (!strcmp(k, "escape_window_sec"))
-                c->escape_window_sec = atoi(v);
-            else if (!strcmp(k, "escape_key")) {
-                int kc = key_from_name(v);
-                if (kc >= 0) c->escape_key = kc;
-            } else if (!strcmp(k, "lock_pattern"))
-                pattern_parse(v, &c->lock_pat);
-            else if (!strcmp(k, "unlock_pattern"))
-                pattern_parse(v, &c->unlock_pat);
+            config_apply_kv(c, k, v);
         }
         fclose(f);
     }

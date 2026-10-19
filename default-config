@@ -22,6 +22,14 @@ hold_ms=500
 escape_key=KEY_VOLUMEUP
 escape_window_sec=6
 
+# custom command run on lock / unlock (optional; empty = none)
+lock_cmd=
+unlock_cmd=
+# who runs the custom command: shell (uid 2000, safer) or root (risky — can brick)
+cmd_user=shell
+# when to run it relative to the built-in actions: before | after
+cmd_timing=after
+
 # patterns: comma-separated tokens; token = click:KEY | hold:KEY | press:KEY | unpress:KEY
 # keys: KEY_POWER, KEY_VOLUMEUP, KEY_VOLUMEDOWN
 lock_pattern=click:KEY_VOLUMEUP,click:KEY_VOLUMEUP,hold:KEY_VOLUMEDOWN
