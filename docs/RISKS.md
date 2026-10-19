@@ -54,14 +54,14 @@ is plaintext and the bootloader is open.
 | Option | Risk / caveat |
 |---|---|
 | `strict_disable` | `pm disable` is **global** `DISABLED` (not per-user). From root it may succeed, but `enable` returns the app to *enabled* (not its prior state), and on system/dependent packages it can destabilize the system. Default is `disable-user` (per-user, safe). We fall back to `disable-user` if `disable` is rejected. |
-| `opt_lockdown` | No clean shell trigger for true biometric lockdown. Degrades to "lock the screen" (`input keyevent 26` when awake) + a best-effort strong-auth attempt. The shakiest option — verify on device. |
+| `opt_lockdown` | Triggers a real strong-auth lockdown via `cmd lock_settings require-strong-auth STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN --user 0` — the next unlock then requires PIN/pattern and biometrics are blocked (the point of lockdown). It does **not** touch the display (the device locks on its own; nothing wakes an off screen). The strong-auth reason strings can vary by Android version — verify on device. |
 | `opt_private_space` | Uses `am stop-user <ps_id>`. Private Space usually auto-locks on device lock anyway; verify on a real Private Space. |
 | recents clearing | A side-effect of `am force-stop`. Whether it removes the exact card must be verified on A16; no guaranteed per-task delete from shell. Harmless if it doesn't. |
 | `opt_disable_devopts` | Hides the whole Developer Options section via `development_settings_enabled=0`, restored from `state`. We deliberately **do not** touch `adb_enabled`, so the adb-based recovery path stays alive. |
 
 ## 4. Recovery, in order
 
-1. **Reverse combo** — the normal path. The daemon is alive and root-capable
+1. **Unlock combo** — the normal path. The daemon is alive and root-capable
    independently of whether the Magisk app / KsuWebUI is hidden (root was granted to it
    by the manager daemon at boot). `unlock` restores **all** locked packages, including
    the manager app and KsuWebUI if you hid them, so the UI comes back.
@@ -90,7 +90,13 @@ manager app. But a **new interactive su prompt** can't show its confirmation UI
 (the manager Activity is disabled) → it times out → deny. KsuWebUI lives inside the
 manager, so hiding it kills the GUI config until unlock (the CLI still works).
 
-**Recommendation:** hide the manager with its own built-in hide (Magisk repackage /
+The WebUI surfaces the root manager and WebUI-host apps in a separate **Magisk-related**
+section and requires an explicit confirm before you can select one — hiding them is a
+deliberate, riskier choice (they are no longer on the daemon's hard blocklist). A
+repackaged/hidden Magisk is resolved by its real package name via
+`magisk --sqlite "SELECT value FROM strings WHERE key='requester'"`.
+
+**Recommendation:** prefer the manager's own built-in hide (Magisk repackage /
 random name), which hides it without breaking su grants; hide ordinary target apps with
 lockem; treat hiding the manager/WebUI as opt-in, knowing you fall back to headless CLI.
 

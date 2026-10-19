@@ -128,13 +128,22 @@ Reference device tested: **Pixel 9a / Android 16** — substitute your own. Repe
 smoke run, then close what the VM couldn't:
 
 - **SELinux:** collect real denials — `dmesg | grep 'avc: denied'` — for reading
-  `/dev/input/*` (and the `EVIOCGRAB` ioctl during recording). Extend `sepolicy.rule`
-  with the exact types/classes from the denials (don't guess types).
+  `/dev/input/*` (and the `EVIOCGRAB` ioctl during recording), and for the binder calls
+  behind `cmd vibrator_manager` and `cmd lock_settings`. Extend `sepolicy.rule` with the
+  exact types/classes from the denials (don't guess types).
 - **Passive match on hardware buttons:** the daemon catches the combo from the live
   stream; incidental system reactions are tolerated. The temporary record grab really
   silences button reactions while recording.
-- Physical vibration; real lockdown/biometric behavior; `pm hide` visibility in
-  Settings → Apps on A16; real recents-card removal; Private Space `am stop-user`.
+- **Record handshake:** a single Record press runs exactly one grab (one
+  `record: start` in the log), and a timed-out/empty capture must NOT wipe a good
+  pattern (log shows `kept previous pattern`, config unchanged).
+- **Vibration:** confirm a pulse and check the log for `vibrate: ok via '…'` (the
+  chain tries `cmd vibrator_manager synced -f oneshot <ms>` first).
+- **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
+  STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN --user 0`; verify the next unlock is forced to
+  PIN/pattern (biometrics rejected) and that an already-off screen is not woken.
+- `pm hide` visibility in Settings → Apps on A16; real recents-card removal; Private
+  Space `am stop-user`.
 - `strict_disable`: does `pm disable` pass from root on the phone, or does it fall back
   to `disable-user`?
 - Boot-escape timing: which keys the firmware grabs on early boot, and how long the

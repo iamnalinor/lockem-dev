@@ -53,9 +53,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lockem-module
-          path: |
-            dist/lockem.zip
-            dist/lockem.zip.sha256
+          path: dist/lockem-*.zip
           if-no-files-found: error
 
   release:
@@ -76,13 +74,13 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: dist/lockem.zip
+          subject-path: dist/lockem-*.zip
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           gh release create "${GITHUB_REF_NAME}"
-          dist/lockem.zip dist/lockem.zip.sha256
+          dist/lockem-*.zip
           --repo "${GITHUB_REPOSITORY}"
           --title "lockem ${GITHUB_REF_NAME}"
           --generate-notes

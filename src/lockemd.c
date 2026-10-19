@@ -43,10 +43,12 @@ static void config_write_kv(const char *key, const char *val) {
         snprintf(tmp, sizeof(tmp), "%s=%s\n", key, val);
         lines[n++] = strdup(tmp);
     }
-    FILE *w = fopen(CFG_FILE, "w");
+    /* write to a temp file and rename, so a crash mid-write can't truncate config */
+    FILE *w = fopen(CFG_FILE ".tmp", "w");
     if (w) {
         for (int i = 0; i < n; i++) fputs(lines[i], w);
         fclose(w);
+        rename(CFG_FILE ".tmp", CFG_FILE);
     }
     for (int i = 0; i < n; i++) free(lines[i]);
 }
@@ -67,8 +69,24 @@ static int boot_escape(input_t *in, const config_t *c) {
 }
 
 /* ---- record mode ---- */
-static void do_record(input_t *in, const char *cfg_key) {
-    log_msg("record: start (%s) — grabbing input", cfg_key);
+
+/* Write the record response atomically (temp + rename) so the WebUI never reads a
+   half-written file. Echoes the request id (so the WebUI can match its own request)
+   and a status: "ok" (captured; kv_line carries the pattern) or "empty" (nothing
+   captured — config was NOT touched). id may be NULL for a CLI-initiated record. */
+static void write_rec_result(const char *id, const char *status, const char *kv_line) {
+    FILE *rf = fopen(REC_RESULT ".tmp", "w");
+    if (!rf) return;
+    if (id && id[0]) fprintf(rf, "id=%s\n", id);
+    fprintf(rf, "status=%s\n", status);
+    if (kv_line && kv_line[0]) fprintf(rf, "%s\n", kv_line);
+    fclose(rf);
+    rename(REC_RESULT ".tmp", REC_RESULT);
+}
+
+/* action is "record_lock" or "record_unlock"; id is the WebUI request id (or NULL). */
+static void do_record(input_t *in, const char *action, const char *id) {
+    log_msg("record: start (%s) — grabbing input", action);
     input_grab(in, 1);
 
     rawev_t evs[MAX_REC_EVENTS];
@@ -91,19 +109,61 @@ static void do_record(input_t *in, const char *cfg_key) {
     pattern_t pat;
     pattern_record_normalize(evs, n, tmp.hold_ms, &pat);
 
-    char s[512];
-    pattern_to_string(&pat, s, sizeof(s));
     const char *key_name_cfg =
-        (strcmp(cfg_key, "record_lock") == 0) ? "lock_pattern" : "unlock_pattern";
-    config_write_kv(key_name_cfg, s);
+        (strcmp(action, "record_lock") == 0) ? "lock_pattern" : "unlock_pattern";
 
-    FILE *rf = fopen(REC_RESULT, "w");
-    if (rf) {
-        fprintf(rf, "%s=%s\n", key_name_cfg, s);
-        fclose(rf);
+    /* Nothing captured: do NOT clobber an existing good pattern with an empty one. */
+    if (pat.n == 0) {
+        write_rec_result(id, "empty", NULL);
+        log_msg("record: captured 0 events (%s) -> kept previous pattern", action);
+        return;
     }
 
+    char s[512];
+    pattern_to_string(&pat, s, sizeof(s));
+    config_write_kv(key_name_cfg, s);
+
+    char kv[600];
+    snprintf(kv, sizeof(kv), "%s=%s", key_name_cfg, s);
+    write_rec_result(id, "ok", kv);
+
     log_msg("record: captured %d events -> %s=%s", n, key_name_cfg, s);
+}
+
+/* Read + parse the WebUI's atomic request file (content: id=…, action=…), dedup by id,
+   and dispatch. Keeps a one-shot dedup so a stray re-delivery can't double-record. */
+static void handle_request(input_t *in, int *dirty) {
+    static char last_id[64] = "";
+
+    char path[300];
+    snprintf(path, sizeof(path), "%s/request", CTL_DIR);
+    FILE *f = fopen(path, "r");
+    if (!f) return;
+
+    char id[64] = "", action[32] = "", line[256];
+    while (fgets(line, sizeof(line), f)) {
+        char *nl = strchr(line, '\n');
+        if (nl) *nl = 0;
+        if (!strncmp(line, "id=", 3)) {
+            strncpy(id, line + 3, sizeof(id) - 1);
+        } else if (!strncmp(line, "action=", 7)) {
+            strncpy(action, line + 7, sizeof(action) - 1);
+        }
+    }
+    fclose(f);
+
+    if (!action[0]) return;
+    if (id[0] && strcmp(id, last_id) == 0) return; /* dedup repeats */
+    if (id[0]) {
+        strncpy(last_id, id, sizeof(last_id) - 1);
+        last_id[sizeof(last_id) - 1] = 0;
+    }
+
+    if (!strcmp(action, "record_lock") || !strcmp(action, "record_unlock")) {
+        do_record(in, action, id[0] ? id : NULL);
+        *dirty = 1;
+    }
+    /* reserved: action=cancel (real Stop) — not implemented yet */
 }
 
 /* ---- ctl handling ---- */
@@ -121,11 +181,14 @@ static void drain_ctl_and_handle(int ifd, input_t *in, config_t *c, matcher_t *m
                     *dirty = 1;
                 } else if (!strcmp(nm, "lock_now")) {
                     act_lock(c);
+                } else if (!strcmp(nm, "request")) {
+                    /* WebUI record handshake: content carries id + action */
+                    handle_request(in, dirty);
                 } else if (!strcmp(nm, "record_lock")) {
-                    do_record(in, "record_lock");
+                    do_record(in, "record_lock", NULL);
                     *dirty = 1;
                 } else if (!strcmp(nm, "record_unlock")) {
-                    do_record(in, "record_unlock");
+                    do_record(in, "record_unlock", NULL);
                     *dirty = 1;
                 }
                 char path[300];
@@ -184,7 +247,11 @@ int main(void) {
     }
 
     int ifd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-    if (ifd >= 0) inotify_add_watch(ifd, CTL_DIR, IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE);
+    /* IN_CLOSE_WRITE catches `: > ctl/<name>` (CLI name-signals); IN_MOVED_TO catches the
+       WebUI's atomic rename of the `request` file. We deliberately do NOT watch IN_CREATE:
+       a single `: >` fires BOTH create and close-write, which used to run each signal twice
+       (e.g. a stray 15s record grab that overwrote a good pattern). */
+    if (ifd >= 0) inotify_add_watch(ifd, CTL_DIR, IN_MOVED_TO | IN_CLOSE_WRITE);
 
     matcher_t ml, mu;
     matcher_init(&ml, &cfg.lock_pat, cfg.hold_ms);

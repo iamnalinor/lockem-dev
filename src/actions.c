@@ -5,6 +5,11 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <sys/wait.h>
+
+/* Haptic pulse length for lock/unlock feedback (ms). 80 ms was imperceptible on
+   Pixel-class LRA actuators. */
+#define VIBRATE_MS 200
 
 static int run(const char *fmt, ...) {
     char cmd[1024];
@@ -74,8 +79,25 @@ static void restore_devopts(void) {
 }
 
 static void vibrate(void) {
-    run("cmd vibrator_manager vibrate 80 >/dev/null 2>&1 || cmd vibrator vibrate 80 >/dev/null "
-        "2>&1");
+    /* Android's vibrator CLI changed across versions and the right syntax varies by
+       device, so try candidates in order and stop at the first that exits 0. `-f`
+       forces the pulse past haptic-intensity settings. Log which path worked (or that
+       all failed) so a silent no-op on another device is visible in the log. */
+    static const char *cmds[] = {
+        "cmd vibrator_manager synced -f oneshot %d >/dev/null 2>&1", /* A12+, forced */
+        "cmd vibrator_manager synced oneshot %d >/dev/null 2>&1",    /* A12+, if -f rejected */
+        "cmd vibrator vibrate %d >/dev/null 2>&1",                   /* legacy service, <=A11 */
+        "cmd vibrator_manager vibrate %d >/dev/null 2>&1",           /* old form, likely dead */
+        NULL,
+    };
+    for (int i = 0; cmds[i]; i++) {
+        int rc = run(cmds[i], VIBRATE_MS);
+        if (rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
+            log_msg("vibrate: ok via '%s'", cmds[i]);
+            return;
+        }
+    }
+    log_msg("vibrate: all methods failed");
 }
 
 static void stop_private_space(void) {
@@ -85,11 +107,12 @@ static void stop_private_space(void) {
 }
 
 static void do_lockdown(void) {
-    /* No clean shell trigger for true lockdown; degrade to screen-off/lock if awake. */
-    run("dumpsys power 2>/dev/null | grep -q 'mWakefulness=Awake' && input keyevent 26 >/dev/null "
-        "2>&1");
-    /* best-effort strong-auth attempt (often a no-op; kept for device verification) */
-    run("cmd lock_settings require-strong-auth >/dev/null 2>&1");
+    /* Real user-lockdown: set the strong-auth flag so the next unlock requires
+       PIN/pattern and biometrics are blocked (the point of lockdown). This does NOT
+       touch the display — the device locks on its own and an already-off screen is
+       never woken. The flag clears on the next successful PIN/pattern auth. */
+    run("cmd lock_settings require-strong-auth STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN "
+        "--user 0 >/dev/null 2>&1");
 }
 
 static void lock_one(const config_t *c, const char *pkg) {

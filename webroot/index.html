@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>lockem</title>
+  <title>Lockem</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>lockem</h1>
+    <h1>Lockem</h1>
     <span id="daemon" class="badge">daemon: …</span>
   </header>
 
@@ -18,23 +18,12 @@
   </p>
 
   <section>
-    <h2>Apps to hide</h2>
-    <p class="hint">Third-party apps on this device. Checked apps are hidden on the
-      lock combo and restored on the unlock combo.</p>
-    <div class="row">
-      <button id="refresh-pkgs" type="button">Refresh list</button>
-      <input id="pkg-filter" type="search" placeholder="filter…" autocomplete="off">
-    </div>
-    <div id="pkglist" class="pkglist">loading…</div>
-  </section>
-
-  <section>
     <h2>Combos</h2>
     <p class="hint">A combo is an ordered recipe of button actions. Record it by
       pressing the buttons, or build it by hand below (no button presses needed).</p>
 
     <div class="combo" data-kind="lock">
-      <h3>Lock combo <small>(hides apps)</small></h3>
+      <h3>Lock combo <small>(hides + disables apps)</small></h3>
       <div class="recipe" id="recipe-lock">—</div>
       <div class="row">
         <button type="button" class="rec" data-kind="lock">Record (press buttons)</button>
@@ -87,10 +76,22 @@
       </details>
     </div>
 
-    <p class="warn">⚠️ Avoid <b>Power + Volume-Down</b> — Android takes a screenshot
-      on that combo, which lands in your gallery and defeats the point. Long-press
-      Power opens the power menu and 5× Power triggers SOS; those are harmless noise
-      but may be surprising.</p>
+    <p class="hint">Note: <b>Power + Volume-Down</b> takes a screenshot on Android, so
+      it's best not to use that combination in a combo.</p>
+  </section>
+
+  <section>
+    <h2>Apps to hide</h2>
+    <p class="hint">Checked apps are hidden + disabled on the lock combo and restored on
+      the unlock combo.</p>
+    <div class="row">
+      <button id="refresh-pkgs" type="button" class="iconbtn" aria-label="Refresh list"
+        title="Refresh list">↻</button>
+      <input id="pkg-filter" type="search" placeholder="filter…" autocomplete="off">
+    </div>
+    <label class="sys-toggle"><input type="checkbox" id="show-system"> Show system apps
+      <small>(risky — hiding system apps can destabilize the device)</small></label>
+    <div id="pkglist" class="pkglist">loading…</div>
   </section>
 
   <section>
@@ -98,10 +99,10 @@
     <label><input type="checkbox" id="opt_vibrate"> Vibrate on lock / unlock</label>
     <label><input type="checkbox" id="opt_private_space"> Lock Private Space on lock
       <small>(am stop-user)</small></label>
-    <label><input type="checkbox" id="opt_lockdown"> Lockdown / lock screen on lock
-      <small>(best-effort)</small></label>
+    <label><input type="checkbox" id="opt_lockdown"> Lockdown on lock
+      <small>(blocks biometrics — next unlock needs PIN)</small></label>
     <label><input type="checkbox" id="opt_disable_devopts"> Hide Developer Options on lock
-      <small>(adb stays on — recovery path preserved)</small></label>
+      <small>(adb stays on; previous state restored on unlock)</small></label>
     <label><input type="checkbox" id="opt_autolock_screenoff"> Auto-lock when screen turns off</label>
     <label><input type="checkbox" id="opt_autolock_timeout"> Auto-lock after inactivity</label>
     <label class="inline">Inactivity timeout (min):
@@ -124,11 +125,26 @@
       <p class="hint">Hold the boot-escape key while the daemon starts (just after you
         unlock the lock screen on boot) to unlock everything — recovery if you forget
         the combo.</p>
+      <div class="row">
+        <button id="dbg-lock" type="button">Lock now</button>
+        <button id="dbg-unlock" type="button">Unlock all</button>
+      </div>
+      <p class="hint">Debug: trigger lock / unlock immediately without the combo.</p>
     </details>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <div class="row">
+      <button id="log-refresh" type="button">Refresh</button>
+      <button id="log-clear" type="button">Clear</button>
+    </div>
+    <pre id="logview" class="logview">—</pre>
   </section>
 
   <div class="actions">
     <button id="save" type="button" class="primary">Save &amp; apply</button>
+    <span id="unsaved" hidden>• unsaved changes</span>
     <span id="savestatus"></span>
   </div>
 

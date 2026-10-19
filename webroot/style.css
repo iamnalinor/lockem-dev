@@ -91,3 +91,30 @@ label input[type="checkbox"] { margin-right: 6px; }
   font-size: 0.88rem; max-width: 90%; z-index: 10;
 }
 code { font-family: ui-monospace, monospace; }
+
+/* app list rows (name + initial placeholder; labels/icons are a later feature) */
+.sys-toggle { font-size: 0.85rem; }
+.iconbtn { font-size: 1.05rem; line-height: 1; padding: 8px 11px; }
+.pkglist label.pkg {
+  display: flex; align-items: center; gap: 8px; margin: 2px 0; padding: 4px;
+  font-size: 0.88rem; word-break: break-all; border-radius: 6px;
+}
+.pkglist label.pkg input[type="checkbox"] { margin: 0; flex: none; }
+.avatar {
+  flex: none; width: 26px; height: 26px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--border); color: var(--fg); font-size: 0.8rem; font-weight: 600;
+}
+.pkg-name { flex: 1; min-width: 0; }
+.pkg.sys .pkg-name { color: var(--muted); }
+.pkg-group {
+  font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .04em; margin: 10px 2px 4px;
+}
+#unsaved { color: var(--warn); font-size: 0.85rem; }
+.logview {
+  max-height: 260px; overflow: auto; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem;
+  white-space: pre-wrap; word-break: break-all; margin: 0;
+}
