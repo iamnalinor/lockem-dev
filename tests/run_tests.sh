@@ -9,10 +9,14 @@ CC="${CC:-gcc}"
 CFLAGS="-std=c11 -D_GNU_SOURCE -Wall -Wextra -g -fsanitize=address,undefined -fno-sanitize-recover=all"
 
 echo "- compiler: $($CC --version | head -n1)"
-# CFLAGS is intentionally word-split into separate args
-# shellcheck disable=SC2086
-"$CC" $CFLAGS -I "$SRC" \
-  "$HERE/test_pattern.c" "$SRC/pattern.c" "$SRC/config.c" \
-  -o "$HERE/run"
 
-"$HERE/run"
+build_and_run() {
+  out="$1"; shift
+  # CFLAGS is intentionally word-split into separate args
+  # shellcheck disable=SC2086
+  "$CC" $CFLAGS -I "$SRC" "$@" -o "$out"
+  "$out"
+}
+
+build_and_run "$HERE/run_pattern" "$HERE/test_pattern.c" "$SRC/pattern.c" "$SRC/config.c"
+build_and_run "$HERE/run_pkgname" "$HERE/test_pkgname.c" "$SRC/pkgname.c"

@@ -54,8 +54,13 @@ function shq(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }
 async function writeFile(path, content) {
-  // base64 payload is [A-Za-z0-9+/=] only, safe to pass unquoted
-  const r = await sh("echo " + b64(content) + " | base64 -d > " + shq(path));
+  // base64 payload is [A-Za-z0-9+/=] only, safe to pass unquoted.
+  // Write to a temp file and rename, so a crash mid-write can't truncate the
+  // real file (a half-written packages.list would silently drop apps on unlock).
+  const tmp = path + ".tmp";
+  const r = await sh(
+    "echo " + b64(content) + " | base64 -d > " + shq(tmp) + " && mv -f " + shq(tmp) + " " + shq(path)
+  );
   return r.errno === 0;
 }
 let toastTimer = null;

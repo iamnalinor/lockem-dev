@@ -1,39 +1,10 @@
 #include "defs.h"
+#include "pkgname.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include <ctype.h>
 #include <unistd.h>
-
-/* packages we refuse to lock — hiding/force-stopping these can destabilize the system */
-static const char *BLOCKLIST[] = {"android",
-                                  "com.android.systemui",
-                                  "com.android.settings",
-                                  "com.android.launcher3",
-                                  "com.google.android.apps.nexuslauncher",
-                                  "com.google.android.gms",
-                                  "com.android.phone",
-                                  "com.android.shell",
-                                  NULL};
-
-static int blocked(const char *pkg) {
-    for (int i = 0; BLOCKLIST[i]; i++)
-        if (strcmp(BLOCKLIST[i], pkg) == 0) return 1;
-    return 0;
-}
-
-/* Accept only well-formed package names: [A-Za-z0-9._], non-empty. This is both a
-   sanity gate against junk in packages.list and a hard guard against shell
-   injection, since package names flow into system()/popen() command strings. */
-static int valid_pkg(const char *pkg) {
-    if (!pkg || !pkg[0]) return 0;
-    for (const char *p = pkg; *p; p++) {
-        unsigned char ch = (unsigned char)*p;
-        if (!(isalnum(ch) || ch == '.' || ch == '_')) return 0;
-    }
-    return 1;
-}
 
 static int run(const char *fmt, ...) {
     char cmd[1024];
@@ -122,11 +93,11 @@ static void do_lockdown(void) {
 }
 
 static void lock_one(const config_t *c, const char *pkg) {
-    if (!valid_pkg(pkg)) {
+    if (!pkg_valid(pkg)) {
         log_msg("skip invalid pkg name");
         return;
     }
-    if (blocked(pkg)) {
+    if (pkg_blocked(pkg)) {
         log_msg("skip blocked pkg: %s", pkg);
         return;
     }
@@ -150,7 +121,7 @@ static void lock_one(const config_t *c, const char *pkg) {
 }
 
 static void unlock_one(const char *pkg) {
-    if (!valid_pkg(pkg)) {
+    if (!pkg_valid(pkg)) {
         log_msg("skip invalid pkg name");
         return;
     }

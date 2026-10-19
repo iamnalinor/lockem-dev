@@ -110,10 +110,28 @@ API android-37.x, Play Store (ps16k, 16 KB page size)** (про рут на нё
   (На хосте нужны `-D_GNU_SOURCE`/`-std=gnu11` — glibc прячет `strtok_r`/`clock_gettime`/`O_CLOEXEC`/
   `popen`/`strdup`/`usleep` под strict c11; bionic/NDK их открывает сам, так что для NDK это не проблема.
   `run_tests.sh` уже ставит `-D_GNU_SOURCE`.)
-- **Unit-тесты**: `PASSED: 66 checks, 0 failures` под ASan/UBSan.
+- **Unit-тесты**: `PASSED: 66 checks` (pattern/config) + `PASSED: 32 checks` (pkgname) под ASan/UBSan.
 - **Линтеры**: `clang-format --dry-run --Werror`, `cppcheck --enable=warning,portability`,
   `shellcheck` (sh+bash) — всё чисто.
 - **`pack.sh`** проверен на заглушках-бинарях: раскладка zip корректна.
+
+### Code-review (superpowers, пройдено) — что поправлено
+Прогнан `superpowers:requesting-code-review` по финальному диффу. Critical — нет. Применено:
+- **Валидация пакетов вынесена** в `src/pkgname.c`/`.h` (`pkg_valid`/`pkg_blocked`) — чтобы её можно
+  было юнит-тестировать без `system()`. `actions.c` и `Android.mk` обновлены; добавлен
+  `tests/test_pkgname.c` (32 проверки: отклонение `;`/пробел/`$()`/backtick/`|`/`&`/`>`/newline/кавычки/
+  слэш/дефис/не-ASCII/пусто; blocklist exact-match).
+- **devopts restore на recovery-пути**: `system/bin/lockem` и `uninstall.sh` раньше писали литерал
+  `null` вместо удаления ключа при изначально unset. Теперь `null` → `settings delete` (как в
+  `actions.c:restore_devopts`).
+- **state читается парсингом** (`grep/cut`), а не `. source` — данные, не код (убраны и SC1091-директивы).
+- **WebUI пишет атомарно** (`writeFile` → `.tmp` + `mv -f`) — обрезанный `packages.list` не «потеряет»
+  пакеты при unlock.
+- `module.prop author=iamnalinor` (был `lockem`).
+
+Отложенные minor (не блокеры, при желании добить): CI-экшены пиннить по commit-SHA (не только мажор-тег);
+матчер по `ev.time` вместо времени чтения (edge при буфере событий); тест `config_load` (FS-парсинг);
+атомарность `config_write_kv` в демоне; `dumpsys power` polling раз в 5с при autolock (выкл. по умолч.).
 
 ### Осталось (нужно устройство/NDK/CI — я к этому доступа не имел)
 - **Реальная сборка демона** `ndk-build` (NDK в облаке нет) — собрать `build.sh` локально/в CI.

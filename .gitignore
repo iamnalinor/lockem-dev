@@ -9,6 +9,7 @@ bin/lockemd-x86_64
 # host test binaries
 tests/*.out
 tests/run
+tests/run_*
 tests/*.bin
 
 # packaged module

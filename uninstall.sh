@@ -15,11 +15,15 @@ if [ -f "$LDIR/packages.list" ] && command -v pm >/dev/null 2>&1; then
   done < "$LDIR/packages.list"
 fi
 
-if [ -f "$LDIR/state" ]; then
-  # shellcheck source=/dev/null
-  . "$LDIR/state" 2>/dev/null
-  if [ -n "$devopts_prev" ] && command -v settings >/dev/null 2>&1; then
-    settings put global development_settings_enabled "$devopts_prev" 2>/dev/null
+if [ -f "$LDIR/state" ] && command -v settings >/dev/null 2>&1; then
+  # parse (don't source) — state is data, not code
+  devopts_prev=$(grep -E '^devopts_prev=' "$LDIR/state" 2>/dev/null | head -n1 | cut -d= -f2-)
+  if [ -n "$devopts_prev" ]; then
+    if [ "$devopts_prev" = "null" ]; then
+      settings delete global development_settings_enabled 2>/dev/null
+    else
+      settings put global development_settings_enabled "$devopts_prev" 2>/dev/null
+    fi
   fi
 fi
 

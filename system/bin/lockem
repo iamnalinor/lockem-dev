@@ -23,10 +23,14 @@ do_unlock() {
     echo "unlocked: $p"
   done < "$PKG"
   if [ -f "$LDIR/state" ]; then
-    # shellcheck source=/dev/null
-    . "$LDIR/state" 2>/dev/null
+    # parse (don't source) — state is data, not code
+    devopts_prev=$(grep -E '^devopts_prev=' "$LDIR/state" 2>/dev/null | head -n1 | cut -d= -f2-)
     if [ -n "$devopts_prev" ]; then
-      settings put global development_settings_enabled "$devopts_prev" >/dev/null 2>&1
+      if [ "$devopts_prev" = "null" ]; then
+        settings delete global development_settings_enabled >/dev/null 2>&1
+      else
+        settings put global development_settings_enabled "$devopts_prev" >/dev/null 2>&1
+      fi
     fi
   fi
   echo "lockem: unlock complete"
