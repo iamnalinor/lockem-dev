@@ -37,8 +37,13 @@ static void test_blocked(void) {
     CHECK(pkg_blocked("com.google.android.gms"));
     CHECK(pkg_blocked("com.android.phone"));
     CHECK(pkg_blocked("com.android.shell"));
+    /* root-manager apps are blocked (hiding them can wedge su grants) */
+    CHECK(pkg_blocked("com.topjohnwu.magisk"));
+    CHECK(pkg_blocked("me.weishu.kernelsu"));
+    CHECK(pkg_blocked("me.bmax.apatch"));
     /* ordinary third-party apps are not blocked */
     CHECK(!pkg_blocked("com.foo.bar"));
+    CHECK(!pkg_blocked("io.github.a13e300.ksuwebui")); /* WebUI host stays lockable */
     CHECK(!pkg_blocked("com.android")); /* prefix, not an exact match */
     CHECK(!pkg_blocked("com.android.systemui2"));
     CHECK(!pkg_blocked(""));

@@ -24,7 +24,7 @@ jobs:
           cppcheck --enable=warning,portability --std=c11 --error-exitcode=1
           --inline-suppr --suppress=missingIncludeSystem -I src src/*.c
       - name: shellcheck (sh)
-        run: shellcheck -s sh customize.sh service.sh uninstall.sh system/bin/lockem
+        run: shellcheck -s sh customize.sh service.sh uninstall.sh action.sh system/bin/lockem
       - name: shellcheck (bash)
         run: shellcheck -s bash build.sh pack.sh tests/run_tests.sh
 

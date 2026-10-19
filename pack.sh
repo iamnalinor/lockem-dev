@@ -17,7 +17,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/bin" "$STAGE/system/bin" "$STAGE/webroot"
 
 # module root files
-cp module.prop customize.sh service.sh uninstall.sh sepolicy.rule default-config "$STAGE/"
+cp module.prop customize.sh service.sh uninstall.sh sepolicy.rule default-config action.sh "$STAGE/"
 # daemon binaries (customize.sh renames the right one to lockemd on install)
 cp bin/lockemd-arm64 bin/lockemd-x86_64 "$STAGE/bin/"
 # CLI + WebUI

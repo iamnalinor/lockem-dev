@@ -9,9 +9,11 @@ LDIR=/data/adb/lockem
 if [ -f "$LDIR/packages.list" ] && command -v pm >/dev/null 2>&1; then
   while IFS= read -r pkg; do
     [ -z "$pkg" ] && continue
-    pm unhide "$pkg" 2>/dev/null
-    pm enable "$pkg" 2>/dev/null
-    pm enable --user 0 "$pkg" 2>/dev/null
+    # </dev/null is load-bearing: pm/cmd run app_process, which otherwise swallows
+    # this loop's stdin (packages.list) and the unhide/enable silently no-op.
+    pm unhide "$pkg" </dev/null 2>/dev/null
+    pm enable "$pkg" </dev/null 2>/dev/null
+    pm enable --user 0 "$pkg" </dev/null 2>/dev/null
   done < "$LDIR/packages.list"
 fi
 
