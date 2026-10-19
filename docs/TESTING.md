@@ -21,9 +21,8 @@ parallel press/unpress), and the recording normalizer. This is also the CI `test
 
 ### ⚠️ Caveats before you trust the VM
 
-- **A Play Store (Google Play) image gives no root** — `adb root` is refused. For root
-  you need a **Google APIs (not Play Store)** x86_64 image, rooted with **rootAVD**
-  (<https://github.com/newbit1/rootAVD>), which patches the AVD ramdisk with Magisk.
+- **A Play Store (Google Play) image gives no root** — `adb root` is refused, and the
+  rooting tools' su-grant step needs it. Use a **Google APIs (not Play Store)** image.
 - Many emulator images run **SELinux permissive** → AVC denials will **not** surface on
   the VM but **will** on a real enforcing phone. So the VM does not validate
   `sepolicy.rule` or real evdev access by the daemon.
@@ -31,29 +30,53 @@ parallel press/unpress), and the recording normalizer. This is also the CI `test
 
 ### Suggested image
 
-An x86_64 image close to the target: API 36/37, 16 KB page size (the `ps16k` variant),
-**Google APIs** (so it can be rooted). The daemon's `-Wl,-z,max-page-size=16384` flag
-(already in `Application.mk`) is required for 16 KB-page images.
+To mirror the Pixel 9a (16 KB pages), use the **`google_apis_ps16k`** image — it is
+both 16 KB-page (`ps16k`) and non-Play-Store (so it can be rooted). The 16 KB page is
+the one thing the VM uniquely exercises about the build: that the daemon, linked with
+`-Wl,-z,max-page-size=16384` (already in `Application.mk`), actually loads under 16 KB
+pages. Everything else (hide/unhide, the matcher, config, WebUI) is page-size-agnostic,
+so a plain 4 KB `google_apis` image is a fine fallback if a 16 KB AVD won't root.
+
+> Do **not** use a `..._playstore_...` image — it blocks root. The non-Play-Store
+> `google_apis_ps16k` variant is the one you want.
 
 ### Setup
 
-**1. Create a Google APIs x86_64 AVD** (needs the Android SDK cmdline-tools on PATH).
-Pick an image close to the target; adjust the API level to taste:
+**1. Create a non-Play-Store 16 KB AVD** (needs the Android SDK cmdline-tools on PATH;
+confirm the exact tag with `sdkmanager --list | grep ps16k` — in Android Studio, 16 KB
+images are under the **Other Images** tab):
 ```bash
-sdkmanager "system-images;android-36;google_apis;x86_64"
-avdmanager create avd -n lockem-test -k "system-images;android-36;google_apis;x86_64"
-emulator -avd lockem-test        # first boot, so rootAVD can see the image
+sdkmanager "system-images;android-36;google_apis_ps16k;x86_64"
+avdmanager create avd -n lockem16k -k "system-images;android-36;google_apis_ps16k;x86_64"
 ```
 
-**2. Root it with rootAVD** (patches the AVD ramdisk with Magisk) —
-<https://github.com/newbit1/rootAVD>:
+**2. Root it with avdroot** (<https://github.com/ejfkdev/avdroot>) — a pure-Go tool that
+patches the AVD ramdisk with Magisk on the host. Prefer it over
+[rootAVD](https://github.com/newbit1/rootAVD): rootAVD relies on a bundled busybox that
+fails to run on recent / 16 KB-page guest images (`Can not find any working Busybox
+Version`), whereas avdroot does the patch host-side with no busybox and no in-guest code.
+
+Install it either from a release binary or with Go:
 ```bash
-git clone https://github.com/newbit1/rootAVD.git && cd rootAVD
-./rootAVD.sh ListAllAVDs                                   # find your ramdisk path
-./rootAVD.sh system-images/android-36/google_apis/x86_64/ramdisk.img
-# it reboots the AVD; finish Magisk setup in the Magisk app (Install → Direct)
+go install github.com/ejfkdev/avdroot@latest   # or download a prebuilt binary from Releases
 ```
-(On Windows use `rootAVD.bat` instead of `./rootAVD.sh`.)
+Then root the AVD. Download a **stable** `Magisk-vXX.apk` from
+<https://github.com/topjohnwu/Magisk/releases> and pass it with `--magisk` — avdroot
+otherwise fetches the newest release (possibly a pre-release) and does not verify the
+APK signature, so supplying the file yourself is both a version pin and a supply-chain
+guard:
+```bash
+avdroot doctor                         # confirm it found the SDK/AVD (else pass --sdk PATH)
+avdroot list                           # AVD name + patch status
+avdroot patch --dry-run lockem16k      # preview; writes nothing
+avdroot root lockem16k --magisk /path/to/Magisk-v28.1.apk
+avdroot verify lockem16k               # expects su -> uid=0
+```
+`avdroot restore lockem16k` rolls the ramdisk back. On Windows the emulator is restarted
+as `-avd NAME`; pass `--emulator-args "…"` to keep extra flags. Note avdroot is young and
+its author verified Android 17 end-to-end only on arm64 macOS — if it can't root a 16 KB
+x86_64 AVD on your host, fall back to a plain `google_apis;x86_64` (4 KB) image for the
+functional pass and leave the 16 KB-load check to the real device (Track B).
 
 **3. Build the x86_64 daemon and package** (on your build host, needs an NDK r26+):
 ```bash
