@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#ifndef LOCKEM_DIR /* overridable so host tests can run the action code in a temp dir */
 #define LOCKEM_DIR "/data/adb/lockem"
+#endif
 #define CFG_FILE LOCKEM_DIR "/config"
 #define PKG_FILE LOCKEM_DIR "/packages.list"
 #define STATE_FILE LOCKEM_DIR "/state"
@@ -73,6 +75,7 @@ int pattern_to_string(const pattern_t *p, char *out, size_t outsz);
 /* log (util.c) */
 void log_init(void);
 void log_msg(const char *fmt, ...);
+void log_no_rotate(void);
 
 /* actions.c */
 void act_lock(const config_t *c);

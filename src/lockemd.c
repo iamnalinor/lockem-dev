@@ -1,4 +1,5 @@
 #include "defs.h"
+#include "autolock.h"
 #include "input.h"
 #include "pattern.h"
 
@@ -359,9 +360,8 @@ int main(void) {
     matcher_init(&mu, &cfg.unlock_pat, cfg.hold_ms);
 
     int dirty = 0;
-    int prev_awake = 1;
-    long asleep_since = 0;
-    int autolocked_this_sleep = 0;
+    autolock_t al;
+    autolock_init(&al);
 
     struct pollfd pfd[MAX_INPUT_FDS + 1];
     while (!g_stop) {
@@ -381,7 +381,8 @@ int main(void) {
             np++;
         }
 
-        int r = poll(pfd, np, 5000);
+        /* with auto-lock on, wake in time for the next (rate-limited) screen probe */
+        int r = poll(pfd, np, autolock_poll_timeout(&al, &cfg, now_ms(), 5000));
         if (r < 0) {
             if (errno == EINTR) continue;
             break;
@@ -409,26 +410,15 @@ int main(void) {
             }
         }
 
-        /* auto-lock housekeeping */
-        if (cfg.opt_autolock_screenoff || cfg.opt_autolock_timeout) {
-            int awake = screen_awake();
-            if (prev_awake && !awake) { /* just went to sleep */
-                asleep_since = t;
-                autolocked_this_sleep = 0;
-                if (cfg.opt_autolock_screenoff) {
-                    log_msg("auto-lock: screen off");
-                    act_lock(&cfg);
-                    autolocked_this_sleep = 1;
-                }
+        /* auto-lock housekeeping. screen_awake() spawns `dumpsys power` (~100+ ms) and
+           the loop wakes on every key down/up, so it's rate-limited (autolock.c):
+           otherwise each press of a combo pays that cost before the next is read. */
+        if (autolock_probe_due(&al, &cfg, t)) {
+            int why = autolock_step(&al, &cfg, screen_awake(), t);
+            if (why != AUTOLOCK_NONE) {
+                log_msg("auto-lock: %s", why == AUTOLOCK_SCREENOFF ? "screen off" : "timeout");
+                act_lock(&cfg);
             }
-            if (!awake && cfg.opt_autolock_timeout && !autolocked_this_sleep) {
-                if (asleep_since && (t - asleep_since) >= (long)cfg.autolock_timeout_min * 60000L) {
-                    log_msg("auto-lock: timeout");
-                    act_lock(&cfg);
-                    autolocked_this_sleep = 1;
-                }
-            }
-            prev_awake = awake;
         }
     }
 

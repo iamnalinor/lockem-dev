@@ -14,8 +14,10 @@
 
 static FILE *g_logf = NULL;
 static int g_count = 0;
+static int g_no_rotate = 0;
 
 static void rotate_if_needed(void) {
+    if (g_no_rotate) return;
     struct stat st;
     if (stat(LOG_FILE, &st) == 0 && st.st_size > LOG_MAX_BYTES) {
         if (g_logf) {
@@ -25,6 +27,12 @@ static void rotate_if_needed(void) {
         rename(LOG_FILE, LOG_FILE ".1"); /* overwrite previous backup */
         g_logf = fopen(LOG_FILE, "a");
     }
+}
+
+/* For forked helpers that share the daemon's log FILE*: never rotate, or the
+   daemon would keep writing to the renamed .1 file and stop rotating. */
+void log_no_rotate(void) {
+    g_no_rotate = 1;
 }
 
 void log_init(void) {

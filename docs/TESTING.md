@@ -13,9 +13,15 @@ VM can't be trusted for). Plus host unit tests that need neither.
 bash tests/run_tests.sh
 ```
 
-Compiles `pattern.c` + `config.c` with gcc and AddressSanitizer/UBSan and runs the
-suite: pattern parse/serialize round-trip, the matcher (click vs hold timing, reset,
-parallel press/unpress), and the recording normalizer. This is also the CI `test` job.
+Compiles the daemon sources with gcc and AddressSanitizer/UBSan and runs the suite:
+pattern parse/serialize round-trip, the matcher (click vs hold timing, reset, parallel
+press/unpress), the recording normalizer, config parsing, package-name gates, the
+main loop's auto-lock bookkeeping (`autolock.c`: screen-probe rate limit, screen-off /
+timeout decisions), and the lock/unlock actions (`test_actions.c`). The actions run
+for real against fake `pm`/`am`/`settings`/`cmd`/`su` scripts on `PATH` that record
+every call, in a throwaway `LOCKEM_DIR`, so the tests check the exact command lines,
+their order, the double buzz (waveform + oneshot fallback, not blocking the action)
+and that the buzz child never rotates the daemon's log. This is also the CI `test` job.
 
 ## 1. Emulator (Track A) — functional logic
 
@@ -153,8 +159,9 @@ smoke run, then close what the VM couldn't:
 - **Record handshake:** a single Record press runs exactly one grab (one
   `record: start` in the log), and a timed-out/empty capture must NOT wipe a good
   pattern (log shows `kept previous pattern`, config unchanged).
-- **Vibration:** confirm a pulse and check the log for `vibrate: ok via '…'` (the
-  chain tries `cmd vibrator_manager synced -f oneshot <ms>` first).
+- **Vibration:** confirm a tight double buzz and check the log for `vibrate: ok via '…'`
+  (the chain tries a single `cmd vibrator_manager synced -f waveform -a …` first, then
+  falls back to two `oneshot` pulses).
 - **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
   STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN`; verify the next unlock is forced to
   PIN/pattern (biometrics rejected) and that an already-off screen is not woken.

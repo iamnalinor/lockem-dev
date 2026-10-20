@@ -6,12 +6,13 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <time.h>
 
 /* Haptic feedback for lock/unlock: a double buzz (two pulses) fired at the start
    of the action so it acknowledges the combo immediately, not after the work.
-   80 ms was imperceptible on Pixel-class LRA actuators. */
+   80 ms pulses were imperceptible on Pixel-class LRA actuators. */
 #define VIBRATE_MS 100    /* length of one pulse */
-#define VIBRATE_GAP_MS 80 /* silence between the two pulses */
+#define VIBRATE_GAP_MS 60 /* gap between pulses: short, so they read as one double buzz */
 
 /* Run a shell command, logging its combined stdout+stderr (any non-empty lines)
    and its exit status under a short label, so an action's result is visible in
@@ -140,32 +141,80 @@ static void restore_devopts(void) {
     remove(STATE_FILE);
 }
 
-static void vibrate(void) {
+static long mono_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+static int cmd_ok(int rc) {
+    return rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0;
+}
+
+static void vibrate_now(void) {
     /* Android's vibrator CLI changed across versions and the right syntax varies by
        device, so try candidates in order and stop at the first that exits 0. `-f`
        forces the pulse past haptic-intensity settings. Each attempt's output + rc is
        logged (via run_logged), and we log which path worked (or that all failed).
-       Each call is wrapped in `timeout` (like run_custom) so a hung vibrator binary
-       can't stall the single-threaded event loop now that vibrate runs on the hot
-       path, before the lock/unlock work. */
-    static const char *cmds[] = {
+       Each call is wrapped in `timeout` so a hung vibrator binary can't hang us.
+
+       Preferred: one waveform (on/off/on as duration-amplitude pairs), so the gap is
+       timed by the vibrator itself and the two pulses read as one double buzz. */
+    static const char *waveforms[] = {
+        "timeout 3 cmd vibrator_manager synced -f waveform -a %d 255 %d 0 %d 255", /* A12+ */
+        "timeout 3 cmd vibrator_manager synced waveform -a %d 255 %d 0 %d 255",
+        "timeout 3 cmd vibrator waveform -a %d 255 %d 0 %d 255", /* legacy, <=A11 */
+        NULL,
+    };
+    for (int i = 0; waveforms[i]; i++) {
+        if (cmd_ok(run_logged("vibrate", waveforms[i], VIBRATE_MS, VIBRATE_GAP_MS, VIBRATE_MS))) {
+            log_msg("vibrate: ok via '%s'", waveforms[i]);
+            return;
+        }
+    }
+
+    /* Fallback: two oneshots. `cmd vibrator_manager` blocks until the pulse ends on
+       most builds, so time the first call and only sleep what's left of pulse + gap —
+       otherwise the gap doubles and the buzzes feel like two separate events. */
+    static const char *oneshots[] = {
         "timeout 3 cmd vibrator_manager synced -f oneshot %d", /* A12+, forced */
         "timeout 3 cmd vibrator_manager synced oneshot %d",    /* A12+, if -f rejected */
         "timeout 3 cmd vibrator vibrate %d",                   /* legacy service, <=A11 */
         "timeout 3 cmd vibrator_manager vibrate %d",           /* old form, likely dead */
         NULL,
     };
-    for (int i = 0; cmds[i]; i++) {
-        int rc = run_logged("vibrate", cmds[i], VIBRATE_MS);
-        if (rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
-            /* double buzz: a second pulse after a short gap, via the same command */
-            usleep((VIBRATE_MS + VIBRATE_GAP_MS) * 1000);
-            run_logged("vibrate", cmds[i], VIBRATE_MS);
-            log_msg("vibrate: ok via '%s'", cmds[i]);
+    for (int i = 0; oneshots[i]; i++) {
+        long t0 = mono_ms();
+        if (cmd_ok(run_logged("vibrate", oneshots[i], VIBRATE_MS))) {
+            long spent = mono_ms() - t0;
+            long wait = spent >= VIBRATE_MS ? VIBRATE_GAP_MS : VIBRATE_MS + VIBRATE_GAP_MS - spent;
+            usleep(wait * 1000);
+            run_logged("vibrate", oneshots[i], VIBRATE_MS);
+            log_msg("vibrate: ok via '%s'", oneshots[i]);
             return;
         }
     }
     log_msg("vibrate: all methods failed");
+}
+
+/* Fire the buzz in a detached grandchild so it starts the instant the combo matches
+   and the lock/unlock work runs in parallel instead of waiting ~0.5 s for it. Double
+   fork so init reaps it: the daemon must not ignore SIGCHLD (pclose needs waitpid).
+   Falls back to vibrating inline if fork fails. Two quick combos may overlap two
+   buzz children; the vibrator service cancels the older vibration, so that's fine. */
+static void vibrate(void) {
+    pid_t pid = fork();
+    if (pid < 0) {
+        vibrate_now();
+        return;
+    }
+    if (pid == 0) {
+        log_no_rotate();
+        /* grandchild buzzes; if that fork fails, buzz here (the parent waits) */
+        if (fork() <= 0) vibrate_now();
+        _exit(0);
+    }
+    waitpid(pid, NULL, 0);
 }
 
 static void stop_private_space(void) {
