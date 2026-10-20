@@ -153,8 +153,9 @@ smoke run, then close what the VM couldn't:
 - **Record handshake:** a single Record press runs exactly one grab (one
   `record: start` in the log), and a timed-out/empty capture must NOT wipe a good
   pattern (log shows `kept previous pattern`, config unchanged).
-- **Vibration:** confirm a pulse and check the log for `vibrate: ok via '…'` (the
-  chain tries `cmd vibrator_manager synced -f oneshot <ms>` first).
+- **Vibration:** confirm a tight double buzz and check the log for `vibrate: ok via '…'`
+  (the chain tries a single `cmd vibrator_manager synced -f waveform -a …` first, then
+  falls back to two `oneshot` pulses).
 - **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
   STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN`; verify the next unlock is forced to
   PIN/pattern (biometrics rejected) and that an already-off screen is not woken.
