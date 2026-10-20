@@ -101,8 +101,9 @@ the click-vs-hold threshold. The 4 s reset window is a fixed constant.
 The installer lays out `/data/adb/lockem/` (config, `packages.list`, `ctl/`), picks the
 right-ABI daemon for your device, and never clobbers an existing config on upgrade.
 
-**Updates.** `module.prop` ships an `updateJson`, so once a new `v*` release is tagged your
-root manager shows an in-app **Update** for the module (bump `versionCode` each release).
+**Updates.** `module.prop` ships an `updateJson`, so once a new version lands in `update.json`
+on `main` (CI then publishes that release) your root manager shows an in-app **Update** for
+the module (bump `versionCode` each release).
 
 ## Verifying the download
 
