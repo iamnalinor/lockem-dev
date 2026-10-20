@@ -383,7 +383,15 @@ int main(void) {
             np++;
         }
 
-        int r = poll(pfd, np, 5000);
+        /* with auto-lock on, wake in time for the next screen probe so a skipped
+           (rate-limited) probe can't push screen-off detection past ~SCREEN_CHECK_MS */
+        int timeout = 5000;
+        if ((cfg.opt_autolock_screenoff || cfg.opt_autolock_timeout) && last_screen_check) {
+            long left = SCREEN_CHECK_MS - (now_ms() - last_screen_check);
+            if (left < 0) left = 0;
+            if (left < timeout) timeout = (int)left;
+        }
+        int r = poll(pfd, np, timeout);
         if (r < 0) {
             if (errno == EINTR) continue;
             break;

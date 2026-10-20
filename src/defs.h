@@ -73,6 +73,7 @@ int pattern_to_string(const pattern_t *p, char *out, size_t outsz);
 /* log (util.c) */
 void log_init(void);
 void log_msg(const char *fmt, ...);
+void log_no_rotate(void);
 
 /* actions.c */
 void act_lock(const config_t *c);

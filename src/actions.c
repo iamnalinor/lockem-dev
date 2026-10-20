@@ -198,7 +198,8 @@ static void vibrate_now(void) {
 /* Fire the buzz in a detached grandchild so it starts the instant the combo matches
    and the lock/unlock work runs in parallel instead of waiting ~0.5 s for it. Double
    fork so init reaps it: the daemon must not ignore SIGCHLD (pclose needs waitpid).
-   Falls back to vibrating inline if fork fails. */
+   Falls back to vibrating inline if fork fails. Two quick combos may overlap two
+   buzz children; the vibrator service cancels the older vibration, so that's fine. */
 static void vibrate(void) {
     pid_t pid = fork();
     if (pid < 0) {
@@ -206,10 +207,9 @@ static void vibrate(void) {
         return;
     }
     if (pid == 0) {
-        if (fork() == 0) {
-            vibrate_now();
-            _exit(0);
-        }
+        log_no_rotate();
+        /* grandchild buzzes; if that fork fails, buzz here (the parent waits) */
+        if (fork() <= 0) vibrate_now();
         _exit(0);
     }
     waitpid(pid, NULL, 0);
