@@ -31,7 +31,9 @@ static void rotate_if_needed(void) {
 
 /* For forked helpers that share the daemon's log FILE*: never rotate, or the
    daemon would keep writing to the renamed .1 file and stop rotating. */
-void log_no_rotate(void) { g_no_rotate = 1; }
+void log_no_rotate(void) {
+    g_no_rotate = 1;
+}
 
 void log_init(void) {
     rotate_if_needed();

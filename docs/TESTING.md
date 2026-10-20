@@ -13,9 +13,15 @@ VM can't be trusted for). Plus host unit tests that need neither.
 bash tests/run_tests.sh
 ```
 
-Compiles `pattern.c` + `config.c` with gcc and AddressSanitizer/UBSan and runs the
-suite: pattern parse/serialize round-trip, the matcher (click vs hold timing, reset,
-parallel press/unpress), and the recording normalizer. This is also the CI `test` job.
+Compiles the daemon sources with gcc and AddressSanitizer/UBSan and runs the suite:
+pattern parse/serialize round-trip, the matcher (click vs hold timing, reset, parallel
+press/unpress), the recording normalizer, config parsing, package-name gates, the
+main loop's auto-lock bookkeeping (`autolock.c`: screen-probe rate limit, screen-off /
+timeout decisions), and the lock/unlock actions (`test_actions.c`). The actions run
+for real against fake `pm`/`am`/`settings`/`cmd`/`su` scripts on `PATH` that record
+every call, in a throwaway `LOCKEM_DIR`, so the tests check the exact command lines,
+their order, the double buzz (waveform + oneshot fallback, not blocking the action)
+and that the buzz child never rotates the daemon's log. This is also the CI `test` job.
 
 ## 1. Emulator (Track A) — functional logic
 

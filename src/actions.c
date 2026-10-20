@@ -12,7 +12,7 @@
    of the action so it acknowledges the combo immediately, not after the work.
    80 ms pulses were imperceptible on Pixel-class LRA actuators. */
 #define VIBRATE_MS 100    /* length of one pulse */
-#define VIBRATE_GAP_MS 60 /* silence between the two pulses: short, so they read as one double buzz */
+#define VIBRATE_GAP_MS 60 /* gap between pulses: short, so they read as one double buzz */
 
 /* Run a shell command, logging its combined stdout+stderr (any non-empty lines)
    and its exit status under a short label, so an action's result is visible in
@@ -147,7 +147,9 @@ static long mono_ms(void) {
     return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
 }
 
-static int cmd_ok(int rc) { return rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0; }
+static int cmd_ok(int rc) {
+    return rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0;
+}
 
 static void vibrate_now(void) {
     /* Android's vibrator CLI changed across versions and the right syntax varies by

@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#ifndef LOCKEM_DIR /* overridable so host tests can run the action code in a temp dir */
 #define LOCKEM_DIR "/data/adb/lockem"
+#endif
 #define CFG_FILE LOCKEM_DIR "/config"
 #define PKG_FILE LOCKEM_DIR "/packages.list"
 #define STATE_FILE LOCKEM_DIR "/state"
