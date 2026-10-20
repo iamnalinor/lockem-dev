@@ -156,7 +156,7 @@ smoke run, then close what the VM couldn't:
 - **Vibration:** confirm a pulse and check the log for `vibrate: ok via '…'` (the
   chain tries `cmd vibrator_manager synced -f oneshot <ms>` first).
 - **Lockdown:** `opt_lockdown` runs `cmd lock_settings require-strong-auth
-  STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN --user 0`; verify the next unlock is forced to
+  STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN`; verify the next unlock is forced to
   PIN/pattern (biometrics rejected) and that an already-off screen is not woken.
 - Resolved on-device: `pm hide` does **not** remove the app from Settings → Apps (it
   stays listed as "Disabled" and re-enablable), so lockem now always uses global

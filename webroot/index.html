@@ -122,12 +122,12 @@
       <label>On lock <small>(optional)</small>
         <input type="text" id="lock_cmd" class="cmd-input" placeholder="e.g. input keyevent 26"
           autocomplete="off" spellcheck="false"></label>
-      <label class="inline">Run as:
+      <div class="inline">Run as:
         <span class="segmented" id="lock_cmd_user" data-value="shell" role="group"
           aria-label="Run the lock command as">
           <button type="button" data-value="shell" aria-pressed="true">shell (safer)</button>
           <button type="button" data-value="root" aria-pressed="false">root</button>
-        </span></label>
+        </span></div>
       <p class="warn" id="lock-cmd-root-warn" hidden>The lock command runs as <b>root</b> — a
         bad command can brick the device or break boot. Prefer shell unless you know exactly
         what the command does.</p>
@@ -135,12 +135,12 @@
       <label>On unlock <small>(optional)</small>
         <input type="text" id="unlock_cmd" class="cmd-input" placeholder=""
           autocomplete="off" spellcheck="false"></label>
-      <label class="inline">Run as:
+      <div class="inline">Run as:
         <span class="segmented" id="unlock_cmd_user" data-value="shell" role="group"
           aria-label="Run the unlock command as">
           <button type="button" data-value="shell" aria-pressed="true">shell (safer)</button>
           <button type="button" data-value="root" aria-pressed="false">root</button>
-        </span></label>
+        </span></div>
       <p class="warn" id="unlock-cmd-root-warn" hidden>The unlock command runs as <b>root</b> — a
         bad command can brick the device or break boot. Prefer shell unless you know exactly
         what the command does.</p>

@@ -144,12 +144,15 @@ static void vibrate(void) {
     /* Android's vibrator CLI changed across versions and the right syntax varies by
        device, so try candidates in order and stop at the first that exits 0. `-f`
        forces the pulse past haptic-intensity settings. Each attempt's output + rc is
-       logged (via run_logged), and we log which path worked (or that all failed). */
+       logged (via run_logged), and we log which path worked (or that all failed).
+       Each call is wrapped in `timeout` (like run_custom) so a hung vibrator binary
+       can't stall the single-threaded event loop now that vibrate runs on the hot
+       path, before the lock/unlock work. */
     static const char *cmds[] = {
-        "cmd vibrator_manager synced -f oneshot %d", /* A12+, forced */
-        "cmd vibrator_manager synced oneshot %d",    /* A12+, if -f rejected */
-        "cmd vibrator vibrate %d",                   /* legacy service, <=A11 */
-        "cmd vibrator_manager vibrate %d",           /* old form, likely dead */
+        "timeout 3 cmd vibrator_manager synced -f oneshot %d", /* A12+, forced */
+        "timeout 3 cmd vibrator_manager synced oneshot %d",    /* A12+, if -f rejected */
+        "timeout 3 cmd vibrator vibrate %d",                   /* legacy service, <=A11 */
+        "timeout 3 cmd vibrator_manager vibrate %d",           /* old form, likely dead */
         NULL,
     };
     for (int i = 0; cmds[i]; i++) {
