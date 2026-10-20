@@ -332,8 +332,7 @@ int main(void) {
 
     config_t cfg;
     config_load(&cfg);
-    log_msg("config: %d pkgs, strict_disable=%d, hold_ms=%d", cfg.npkgs, cfg.strict_disable,
-            cfg.hold_ms);
+    log_msg("config: %d pkgs, hold_ms=%d", cfg.npkgs, cfg.hold_ms);
 
     input_t in;
     if (input_open(&in) <= 0) {

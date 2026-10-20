@@ -1,9 +1,6 @@
 # lockem configuration (flat key=value; edited by WebUI or by hand)
 # Packages to hide are listed separately in packages.list (one per line).
 
-# disable axis: 0 = pm disable-user (per-user, safe, default); 1 = strict pm disable (global, risky)
-strict_disable=0
-
 # options (1=on, 0=off)
 opt_vibrate=1
 opt_private_space=1
@@ -23,12 +20,13 @@ escape_key=KEY_VOLUMEUP
 escape_window_sec=6
 
 # custom command run on lock / unlock (optional; empty = none)
+# timing is fixed so the command wraps the built-in actions: the lock command
+# runs after them, the unlock command before them.
 lock_cmd=
 unlock_cmd=
-# who runs the custom command: shell (uid 2000, safer) or root (risky — can brick)
-cmd_user=shell
-# when to run it relative to the built-in actions: before | after
-cmd_timing=after
+# who runs each command: shell (uid 2000, safer) or root (risky — can brick)
+lock_cmd_user=shell
+unlock_cmd_user=shell
 
 # patterns: comma-separated tokens; token = click:KEY | hold:KEY | press:KEY | unpress:KEY
 # keys: KEY_POWER, KEY_VOLUMEUP, KEY_VOLUMEDOWN

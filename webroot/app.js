@@ -171,15 +171,52 @@ function renderRecipe(kind) {
 
 /* ---- config load / form sync ------------------------------------------- */
 const BOOL_OPTS = [
-  "strict_disable", "opt_vibrate", "opt_private_space", "opt_lockdown",
+  "opt_vibrate", "opt_private_space", "opt_lockdown",
   "opt_disable_devopts", "opt_autolock_screenoff", "opt_autolock_timeout",
 ];
 const NUM_OPTS = ["autolock_timeout_min", "hold_ms", "escape_window_sec"];
 
+/* ---- segmented (Apple-style) run-as controls ---------------------------- */
+// value lives on the container's data-value; each segment button mirrors it
+// via aria-pressed (same pattern as the .rec record buttons).
+function segGet(id) {
+  const el = $("#" + id);
+  return el ? el.dataset.value : null;
+}
+function segSet(id, value) {
+  const el = $("#" + id);
+  if (!el) return;
+  const vals = [...el.querySelectorAll("button")].map((b) => b.dataset.value);
+  const v = vals.includes(value) ? value : vals[0];
+  el.dataset.value = v;
+  el.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", b.dataset.value === v ? "true" : "false")
+  );
+}
+// map of segmented run-as control -> its root warning
+const CMD_USERS = [
+  { seg: "lock_cmd_user", warn: "lock-cmd-root-warn" },
+  { seg: "unlock_cmd_user", warn: "unlock-cmd-root-warn" },
+];
 function updateRootWarn() {
-  const w = $("#cmd-root-warn");
-  const sel = $("#cmd_user");
-  if (w && sel) w.hidden = sel.value !== "root";
+  CMD_USERS.forEach(({ seg, warn }) => {
+    const w = $("#" + warn);
+    if (w) w.hidden = segGet(seg) !== "root";
+  });
+}
+// wire each segment button: set value, mark dirty, refresh warnings
+function initSegmented() {
+  CMD_USERS.forEach(({ seg }) => {
+    const el = $("#" + seg);
+    if (!el) return;
+    el.querySelectorAll("button").forEach((b) =>
+      b.addEventListener("click", () => {
+        segSet(seg, b.dataset.value);
+        updateRootWarn();
+        markDirty();
+      })
+    );
+  });
 }
 
 async function loadConfig() {
@@ -203,8 +240,9 @@ async function loadConfig() {
   if (cfg.escape_key && $("#escape_key")) $("#escape_key").value = cfg.escape_key;
   if ($("#lock_cmd")) $("#lock_cmd").value = cfg.lock_cmd || "";
   if ($("#unlock_cmd")) $("#unlock_cmd").value = cfg.unlock_cmd || "";
-  if (cfg.cmd_user && $("#cmd_user")) $("#cmd_user").value = cfg.cmd_user;
-  if (cfg.cmd_timing && $("#cmd_timing")) $("#cmd_timing").value = cfg.cmd_timing;
+  // per-command run-as; fall back to the legacy single cmd_user key (<= v0.2.0)
+  segSet("lock_cmd_user", cfg.lock_cmd_user || cfg.cmd_user || "shell");
+  segSet("unlock_cmd_user", cfg.unlock_cmd_user || cfg.cmd_user || "shell");
   updateRootWarn();
   state.lock = parseRecipe(cfg.lock_pattern);
   state.unlock = parseRecipe(cfg.unlock_pattern);
@@ -226,8 +264,8 @@ function buildConfig() {
   lines.push("escape_key=" + $("#escape_key").value);
   lines.push("lock_cmd=" + sanitize($("#lock_cmd") ? $("#lock_cmd").value : ""));
   lines.push("unlock_cmd=" + sanitize($("#unlock_cmd") ? $("#unlock_cmd").value : ""));
-  lines.push("cmd_user=" + ($("#cmd_user") ? $("#cmd_user").value : "shell"));
-  lines.push("cmd_timing=" + ($("#cmd_timing") ? $("#cmd_timing").value : "after"));
+  lines.push("lock_cmd_user=" + (segGet("lock_cmd_user") || "shell"));
+  lines.push("unlock_cmd_user=" + (segGet("unlock_cmd_user") || "shell"));
   lines.push("lock_pattern=" + recipeToString(state.lock));
   lines.push("unlock_pattern=" + recipeToString(state.unlock));
   return lines.join("\n") + "\n";
@@ -647,19 +685,16 @@ async function init() {
     });
 
   // any option edit marks the form dirty (programmatic loadConfig doesn't fire these)
-  BOOL_OPTS.concat(NUM_OPTS, ["escape_key", "lock_cmd", "unlock_cmd", "cmd_user", "cmd_timing"]).forEach(
-    (id) => {
-      const el = $("#" + id);
-      if (el) el.addEventListener("change", markDirty);
-    }
-  );
+  BOOL_OPTS.concat(NUM_OPTS, ["escape_key", "lock_cmd", "unlock_cmd"]).forEach((id) => {
+    const el = $("#" + id);
+    if (el) el.addEventListener("change", markDirty);
+  });
   // text command inputs: also mark dirty on each keystroke
   ["lock_cmd", "unlock_cmd"].forEach((id) => {
     const el = $("#" + id);
     if (el) el.addEventListener("input", markDirty);
   });
-  const cu = $("#cmd_user");
-  if (cu) cu.addEventListener("change", updateRootWarn);
+  initSegmented();
 
   const logRefresh = $("#log-refresh");
   if (logRefresh) logRefresh.addEventListener("click", loadLog);

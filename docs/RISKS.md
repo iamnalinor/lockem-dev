@@ -1,114 +1,119 @@
-# lockem — risks, threat model, and recovery
+# lockem — what it protects, what it risks, and how to get back in
 
-Read this before relying on lockem. It is deliberately blunt.
+Read this before you install lockem and start hiding apps. It's deliberately
+blunt. lockem is a root module that hides apps behind a hardware-button combo —
+this page is about what that actually protects you from, what it can't, the risks
+of running it, and (most importantly) **how you get back in if you lock yourself
+out.**
 
-## 1. What lockem is (and is not)
+## 1. Threat model
 
-lockem is **concealment / obfuscation**, not a cryptographic lock. It defends against:
+The short version is in the [README](../README.md#what-it-protects-against): lockem is
+**concealment, not encryption** — it defends against casual snooping (a grabbed unlocked
+phone, a shoulder-surfer, a glance through the app drawer / Settings / recents), not
+against someone technical with your device or forensic tools.
 
-- a shoulder-surfer or someone casually poking around your phone,
-- a person who grabs your already-unlocked phone,
-- a quick glance through the app drawer / Settings / recents.
+Why that limit is fundamental, not a bug we can fix:
 
-It does **not** defend against forensics or a knowledgeable adversary who has your
-device. Here is why this is fundamental, not a bug:
+- your bootloader is unlocked (that's what makes root possible at all),
+- your combo and hidden-apps list are stored **in plaintext** under `/data/adb/lockem/`,
+- there's no at-rest encryption, and hidden apps stay enumerable as root
+  (`pm list packages -d` / `-a`, or `dumpsys package` → `hidden=true`).
 
-1. The bootloader is unlocked (a prerequisite for root at all).
-2. The combo is stored in `/data/adb/lockem/config` **in plaintext** (a deliberate
-   decision — we do not encrypt it).
-3. There is no at-rest encryption against root.
+So anyone who can reach your data as root can read the combo or undo the hiding directly.
+And the core trade-off is unavoidable: **any recovery path open to you is also a rollback
+path for whoever holds the phone.** You can't have both "the owner can always get back in"
+and "an attacker can never undo it" while the secret is plaintext and the bootloader is
+open. lockem buys privacy from everyday snooping, not security against a determined
+adversary.
 
-So anyone who can get root over `/data` (pre-authorized `adb su`; or booting a
-root-capable GSI/recovery via `fastboot boot`) can read the plaintext combo **or** just
-remove the hiding directly. Hidden packages are enumerable:
-`pm list packages -d` / `-a`, or `dumpsys package` → `hidden=true`.
+## 2. Risks of installing the module
 
-**The core trade-off is unavoidable here:** any recovery path available to you is also a
-rollback path available to whoever holds the phone. You cannot simultaneously have "the
-owner can always recover" and "a root-capable adversary cannot undo it" while the secret
-is plaintext and the bootloader is open.
+- **It's a root module.** In general a misbehaving root module can break boot.
+  lockem is built specifically to avoid that: it never blocks boot, it restarts
+  its background service with backoff (and gives up if it keeps crashing so it
+  can't burn your battery), and it refuses to hide core system apps (Android
+  system, SystemUI, Settings, your launcher, Google Play services, Phone). The
+  realistic risk of a bootloop is low — but you're still accepting the usual
+  risks of a rooted, bootloader-unlocked phone.
+- **Your combo and hidden list are plaintext.** See section 1. Don't treat lockem
+  as a vault.
+- **Lockdown on lock** (optional): forces the next unlock to require your
+  PIN/pattern and blocks fingerprint/face until you enter it. That's the point of
+  it — but it means you must know your PIN to get back in.
+- **Custom command** (optional): a shell command *you* supply that runs on
+  lock/unlock. It runs exactly as written, with no safety checks. If you set it to
+  run as **root**, a bad command can **brick the device or break boot** — only use
+  root if you know exactly what the command does. Prefer the safer `shell` option.
+- **App hiding is aggressive.** lockem fully disables each hidden app so it
+  disappears from Settings → Apps entirely (not just from the launcher); unlocking
+  re-enables it. Don't add system or critical apps — lockem blocks the obvious
+  ones and makes you explicitly confirm before selecting a system/Magisk app.
+- **Hiding Developer Options keeps adb on.** lockem deliberately leaves adb
+  enabled so the adb recovery route below still works.
 
-## 2. Reliability invariants (must never be violated)
+## 3. If you hide Magisk + the WebUI — read this first
 
-- **No bootloops.** `service.sh` only ever runs in the background and never blocks boot.
-  The supervisor restarts the daemon with capped backoff and gives up after repeated
-  rapid crashes, so a broken daemon can't burn CPU. A kill-switch
-  (`touch /data/adb/lockem/disable`) stops it entirely. There are no post-fs-data
-  blocking steps. `sepolicy.rule` only adds `allow` rules (safe).
-- **No grab in everyday use.** The daemon never holds `EVIOCGRAB` except during the
-  short recording window — it cannot "stick" on your buttons. If it crashes mid-record,
-  the kernel drops the grab when the fd closes. A crashed daemon is harmless.
-- **Critical-package blocklist** (in `actions.c`): the daemon refuses to lock
-  `android`, `com.android.systemui`, `com.android.settings`, the launcher, GMS, phone,
-  and shell — hiding/force-stopping these could destabilize the system. Package names
-  are also validated (`[A-Za-z0-9._]` only) in both the daemon and the CLI, as a guard
-  against junk and shell injection.
-- **force-stop does not touch data** (it is not clear-data) — it is safe, and is how we
-  clear the recents card.
-- **Logs are bounded** (256 KB + one rotated backup) — they cannot fill storage.
-- **Reboot is neutral.** Hidden flags persist in `package-restrictions.xml`; boot
-  neither re-hides nor un-hides. Only the boot-combo escape can change state at boot.
+lockem's settings screen (where you'd normally turn it off or change the combo)
+**lives inside your root manager's WebUI** (KsuWebUI / KernelSU / MMRL). You *can*
+add the Magisk/KernelSU manager app and the WebUI host to lockem's hide list — but
+understand what that costs you:
 
-## 3. Per-option risks
+- Once they're hidden and locked, **there is no in-app off switch anymore.** You
+  can't open lockem's settings to disable it, because the screen you'd use is
+  itself hidden.
+- The manager app being disabled also means a **new** root-permission prompt can't
+  appear, so any app asking for root for the first time gets denied until you
+  unlock. Root that was already granted (lockem itself, and adb if you
+  pre-authorized it) keeps working.
 
-| Option | Risk / caveat |
-|---|---|
-| `strict_disable` | `pm disable` is **global** `DISABLED` (not per-user). From root it may succeed, but `enable` returns the app to *enabled* (not its prior state), and on system/dependent packages it can destabilize the system. Default is `disable-user` (per-user, safe). We fall back to `disable-user` if `disable` is rejected. |
-| `opt_lockdown` | Triggers a real strong-auth lockdown via `cmd lock_settings require-strong-auth STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN` — the next unlock then requires PIN/pattern and biometrics are blocked (the point of lockdown). It does **not** touch the display (the device locks on its own; nothing wakes an off screen). (The `--user 0` arg was dropped: the subcommand ignores it — on-device it logged `USER_ID -1` — and the flag applies regardless.) The strong-auth reason strings can vary by Android version — verify on device. |
-| `opt_private_space` | Uses `am stop-user <ps_id>`. Private Space usually auto-locks on device lock anyway; verify on a real Private Space. |
-| recents clearing | A side-effect of `am force-stop`. Whether it removes the exact card must be verified on A17; no guaranteed per-task delete from shell. Harmless if it doesn't. |
-| `opt_disable_devopts` | Hides the whole Developer Options section via `development_settings_enabled=0`, restored from `state`. We deliberately **do not** touch `adb_enabled`, so the adb-based recovery path stays alive. |
-| custom command | An arbitrary shell command **you** supply, run on lock/unlock (before or after the built-in actions). It is **not validated or sandboxed** — it runs verbatim. `shell` runs it as uid 2000 (`su 2000 -c`, safer); `root` runs it as uid 0, where a bad command can **brick the device or break boot**. Prefer `shell`. It runs synchronously on the daemon's event loop under a **60 s `timeout`**, so it must return promptly — a long-running command is killed (logged `rc=124`) to avoid stalling combo detection. Its stdout/stderr + exit code are logged to `lockem.log` (visible in the WebUI log viewer). |
+So if you hide Magisk + the WebUI, the **only** ways back are the recovery routes
+in section 4 — the unlock combo restores the manager and WebUI along with
+everything else. Don't hide them unless you've got at least one recovery route you
+trust set up and tested.
 
-## 4. Recovery, in order
+**Recommendation:** instead of hiding the manager app *through lockem*, use your
+root manager's own built-in hide (Magisk's "repackage / random name"). That hides
+the app without breaking your root grants and without trapping you out of the
+settings. Treat hiding the manager/WebUI via lockem as an advanced, opt-in choice.
 
-1. **Unlock combo** — the normal path. The daemon is alive and root-capable
-   independently of whether the Magisk app / KsuWebUI is hidden (root was granted to it
-   by the manager daemon at boot). `unlock` restores **all** locked packages, including
-   the manager app and KsuWebUI if you hid them, so the UI comes back.
-2. **Boot-combo escape** — the one fallback we build and that is always on / not
-   disableable. Reboot → unlock the lock screen with your PIN → during the daemon's
-   startup window (first `escape_window_sec` seconds) **hold the escape key**
-   (default Volume-Up) → the daemon unlocks everything. It's checked at daemon start
-   (`late_start`, i.e. after the first unlock, since `/data` isn't mounted before —
-   BFU). No conflict with bootloader/recovery: those use Power+Vol-Down from a powered-
-   off state and are handled by firmware *before* Android/our daemon start.
-3. **Pre-authorized adb** — `adb shell su -c 'lockem unlock'` if su was granted to adb
-   ahead of time and adb is on.
-4. **`lockem unlock` from any root shell** — self-contained, no daemon needed.
-5. **External root over `/data`** — if the daemon won't start at all, boot a
-   root-capable environment (userdebug GSI / recovery with adb-root) via
-   `fastboot boot <img>` — **not** the same patched `init_boot` (that reproduces the
-   same state) — and read the plaintext combo, run `lockem unlock`, or remove the module.
-   The exact image/method is device-specific (worked out per device; Pixel 9a was the
-   reference device but this path has not been exercised there yet).
+## 4. Getting back in (recovery), in order
 
-## 5. Hiding the root manager
+Try these top to bottom — the first one is the normal path.
 
-The manager daemon keeps granting root to already-granted callers (lockem,
-pre-granted adb) from saved policy, so lockem itself won't lose root if you hide the
-manager app. But a **new interactive su prompt** can't show its confirmation UI
-(the manager Activity is disabled) → it times out → deny. KsuWebUI lives inside the
-manager, so hiding it kills the GUI config until unlock (the CLI still works).
+1. **Unlock combo** — the intended way. It restores **everything**, including the
+   Magisk manager and WebUI if you hid them, so your settings come back.
+2. **Boot-combo escape** — the built-in safety net; it's always on and can't be
+   turned off. Reboot, unlock your lock screen with your PIN as usual, then during
+   the first few seconds the daemon is starting up **hold the escape key** (default
+   **Volume-Up**) — it unlocks everything. This doesn't clash with the
+   bootloader/recovery key combos, which happen earlier from a powered-off state.
+3. **Pre-authorized adb** — `adb shell su -c 'lockem unlock'`, if you granted root
+   to adb ahead of time and adb is on.
+4. **Any root shell** — `lockem unlock`. It's self-contained and works even if the
+   background daemon is dead.
+5. **External root over `/data`** — if the daemon won't even start, boot a
+   root-capable image via `fastboot boot <img>` (a rooted GSI/recovery — **not**
+   re-flashing the same patched boot image, which just reproduces the problem) and
+   then run `lockem unlock`, read the plaintext combo, or delete the module. The
+   exact image is device-specific.
 
-The WebUI surfaces the root manager and WebUI-host apps in a separate **Magisk-related**
-section and requires an explicit confirm before you can select one — hiding them is a
-deliberate, riskier choice (they are no longer on the daemon's hard blocklist). A
-repackaged/hidden Magisk is resolved by its real package name via
-`magisk --sqlite "SELECT value FROM strings WHERE key='requester'"`.
+### Turning the module off completely
 
-**Recommendation:** prefer the manager's own built-in hide (Magisk repackage /
-random name), which hides it without breaking su grants; hide ordinary target apps with
-lockem; treat hiding the manager/WebUI as opt-in, knowing you fall back to headless CLI.
+- From adb or recovery: `touch /data/adb/modules/lockem/disable` (or delete the
+  `/data/adb/modules/lockem` folder), then reboot.
+- Or uninstall it from your root manager — on removal lockem un-hides and
+  re-enables **every** app it touched and restores the settings it changed. The
+  most reliable order is to run `lockem unlock` on a live phone **first**, then
+  remove the module.
+- Emergency stop without removing anything: `touch /data/adb/lockem/disable` halts
+  the daemon (your hidden apps stay hidden until you unlock).
 
-## 6. Anti-brick hygiene
+## 5. Before you experiment
 
-- Back up `init_boot` before experimenting (standard Pixel/Magisk hygiene). The module
-  itself never touches boot.
-- Magisk escape: disable the module with
-  `touch /data/adb/modules/lockem/disable` (or delete the dir) from adb/recovery.
-- Fail-safe daemon: invalid/empty config → it does nothing. No grab is held in everyday
-  use, so a crash can never leave your buttons captured.
-- `uninstall.sh` is a full best-effort rollback (unhide+enable every package, restore
-  settings, stop the daemon), so removing the module returns the phone to normal even
-  from a locked state. The *reliable* rollback is `lockem unlock` on a live system first.
+- Back up your boot / `init_boot` image first — standard hygiene for a rooted
+  phone. lockem never touches boot itself, but you want a way back regardless.
+- Make sure at least one recovery route works for you **before** you hide the
+  Magisk manager or the WebUI: know your lock-screen PIN (for the boot-combo
+  escape), or pre-authorize adb root. Don't rely solely on a route you've never
+  tested.
