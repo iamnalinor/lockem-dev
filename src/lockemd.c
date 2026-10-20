@@ -310,6 +310,7 @@ static void drain_ctl_and_handle(int ifd, input_t *in, config_t *c, matcher_t *m
 }
 
 /* ---- auto-lock housekeeping (best-effort; refine on device) ---- */
+#define SCREEN_CHECK_MS 3000 /* min interval between screen-state probes */
 static int screen_awake(void) {
     char out[64];
     FILE *p = popen("dumpsys power 2>/dev/null | grep -o 'mWakefulness=[A-Za-z]*' | head -n1", "r");
@@ -362,6 +363,7 @@ int main(void) {
     int prev_awake = 1;
     long asleep_since = 0;
     int autolocked_this_sleep = 0;
+    long last_screen_check = 0;
 
     struct pollfd pfd[MAX_INPUT_FDS + 1];
     while (!g_stop) {
@@ -409,8 +411,12 @@ int main(void) {
             }
         }
 
-        /* auto-lock housekeeping */
-        if (cfg.opt_autolock_screenoff || cfg.opt_autolock_timeout) {
+        /* auto-lock housekeeping. screen_awake() spawns `dumpsys power` (~100+ ms) and
+           the loop wakes on every key down/up, so rate-limit it: otherwise each press of
+           a combo pays that cost before the next event is read, delaying the match. */
+        if ((cfg.opt_autolock_screenoff || cfg.opt_autolock_timeout) &&
+            (last_screen_check == 0 || t - last_screen_check >= SCREEN_CHECK_MS)) {
+            last_screen_check = t;
             int awake = screen_awake();
             if (prev_awake && !awake) { /* just went to sleep */
                 asleep_since = t;
