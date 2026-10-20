@@ -14,34 +14,57 @@ it is meant to run on any rooted Android device, across root managers.
 > Private Space, vibration path, and which keys the firmware grabs on early boot.
 > Reports and PRs from other devices are welcome.
 
-> **lockem is concealment, not encryption.** It hides apps from a glance or a
-> grabbed-unlocked phone — not from forensics or a knowledgeable adversary with your
-> device. Read **[docs/RISKS.md](docs/RISKS.md)** before relying on it.
+> **It's privacy, not a vault.** lockem hides apps from a glance or a
+> grabbed-unlocked phone — not from forensics or someone technical with your device.
 
 ---
 
+## What it protects against
+
+lockem is about **privacy from a glance, not security from an attacker.** It helps when:
+
+- someone picks up your unlocked phone and scrolls around,
+- a person looks over your shoulder,
+- you hand your phone over and don't want certain apps noticed in the app drawer,
+  Settings, or recents.
+
+It does **not** keep your apps safe from someone technical who has your device, or from
+forensic tools. Your phone is rooted with an unlocked bootloader, and lockem stores your
+combo and hidden-apps list in plain text — so anyone who can get deep enough into the
+phone can simply undo the hiding or read the combo.
+
+There's an honest trade-off built in: **every way you can get back in is also a way
+someone else holding your phone could undo lockem.** You can't have both. lockem buys
+everyday privacy, not a vault.
+
+The full threat model and the recovery routes are in **[docs/RISKS.md](docs/RISKS.md)** —
+read it before you rely on lockem.
+
 ## How it works
 
-A small native daemon (`lockemd`, started `late_start` by `service.sh`) reads the
-power/volume evdev stream **passively** and watches for two combos:
+You pick which apps to hide and record two button combos — one to **lock** (hide the
+apps) and one to **unlock** (bring them back). A small background service watches your
+Power and Volume buttons and acts when it sees a combo:
 
-- **lock combo** → for each selected package: `pm disable` (falls back to
-  `pm disable-user` if the build rejects the global disable), `pm hide`,
-  `am force-stop` (the force-stop also clears the recents card). Optional extras:
-  vibrate, lock Private Space, lockdown (blocks biometrics), hide Developer
-  Options, and a **custom command** you supply (run as shell or root; the lock
-  command runs after the built-in actions, the unlock command before them).
-- **unlock combo** → `pm unhide` + `pm enable` for every selected package, and
-  restores Developer Options.
+- **Lock** disables each chosen app so it disappears from the launcher, from Settings,
+  and from recents. Optional extras: vibrate, lock Private Space, force a PIN on the next
+  unlock (lockdown), hide Developer Options, and run a **custom command** you supply.
+- **Unlock** brings every chosen app back.
 
-Hidden state lives in `package-restrictions.xml` and **persists across reboots on its
-own** — `service.sh` never re-applies lock at boot (so it can't break booting). The
-daemon only listens and performs the boot-combo escape check.
+What keeps it safe to run:
 
-Exclusive input capture (`EVIOCGRAB`) is used **only** during combo recording, so the
-phone doesn't react to your presses while you record. In everyday use the daemon never
-holds a grab — it listens passively, so it can't "stick" on your buttons, and a daemon
-crash is harmless (the feature just stops until restart).
+- **It can't boot-loop your phone** — lock is never re-applied automatically at startup,
+  so a bad state can't trap you out.
+- **It only listens** to your buttons in normal use (it takes them over only while you're
+  recording a combo), so it can't get stuck intercepting your presses; if the service
+  crashes, the feature just stops until the next restart.
+- **It refuses to hide core system apps** (Android system, Settings, your launcher,
+  Phone, Google Play services).
+
+> Under the hood: lock runs `pm disable` (falling back to `pm disable-user`) + `pm hide` +
+> `am force-stop` per app; unlock runs `pm unhide` + `pm enable`. Hidden state lives in
+> `package-restrictions.xml` and persists across reboots on its own. More detail is in
+> [docs/RISKS.md](docs/RISKS.md) and [docs/TESTING.md](docs/TESTING.md).
 
 ### Combos are recipes
 

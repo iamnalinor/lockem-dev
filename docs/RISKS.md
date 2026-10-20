@@ -6,31 +6,26 @@ this page is about what that actually protects you from, what it can't, the risk
 of running it, and (most importantly) **how you get back in if you lock yourself
 out.**
 
-## 1. What lockem does — and what it can't
+## 1. Threat model
 
-lockem is **concealment**, not a cryptographic lock. It's good against:
+The short version is in the [README](../README.md#what-it-protects-against): lockem is
+**concealment, not encryption** — it defends against casual snooping (a grabbed unlocked
+phone, a shoulder-surfer, a glance through the app drawer / Settings / recents), not
+against someone technical with your device or forensic tools.
 
-- someone casually poking around your unlocked phone,
-- a shoulder-surfer,
-- a quick glance through the app drawer, Settings, or recents.
+Why that limit is fundamental, not a bug we can fix:
 
-It does **not** protect against someone technical who has your device, forensic
-tools, or anyone who can get root over your data. That's not a bug we can fix — it
-follows from how a rooted phone works:
+- your bootloader is unlocked (that's what makes root possible at all),
+- your combo and hidden-apps list are stored **in plaintext** under `/data/adb/lockem/`,
+- there's no at-rest encryption, and hidden apps stay enumerable as root
+  (`pm list packages -d` / `-a`, or `dumpsys package` → `hidden=true`).
 
-- your bootloader is unlocked (that's what makes root possible in the first place),
-- your combo and your hidden-apps list are stored **in plaintext** under
-  `/data/adb/lockem/`,
-- there's no encryption of that data at rest.
-
-So anyone who can reach your data as root can just read the combo or undo the
-hiding directly, and hidden apps can still be discovered with the right tools.
-
-**The unavoidable trade-off:** every way *you* can recover is also a way someone
-who holds your phone can undo lockem. You can't have both "I can always get back
-in" and "an attacker can never undo it" while the combo is plaintext and the
-bootloader is open. lockem buys privacy from everyday snooping, not security
-against a determined attacker.
+So anyone who can reach your data as root can read the combo or undo the hiding directly.
+And the core trade-off is unavoidable: **any recovery path open to you is also a rollback
+path for whoever holds the phone.** You can't have both "the owner can always get back in"
+and "an attacker can never undo it" while the secret is plaintext and the bootloader is
+open. lockem buys privacy from everyday snooping, not security against a determined
+adversary.
 
 ## 2. Risks of installing the module
 
